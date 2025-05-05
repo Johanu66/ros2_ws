@@ -1,0 +1,295 @@
+
+---
+
+# 📘 Kinova Gen3 Lite – Simulated Data Generation for Vision-Based Learning
+
+## 🧰 Objective
+Use a **simulated Kinova Gen3 Lite robotic arm** in **Gazebo (via ros_gz_sim)** to generate **synthetic image data** from virtual sensors (cameras), for training vision-based robot policies.
+
+---
+
+## 1. ✅ Launch the Simulation
+
+```bash
+ros2 launch kinova_gen3_lite_sim sim_launch.py
+```
+
+This launches:
+- The robot in a Gazebo world (`empty_world.sdf`)
+- Basic plugins (e.g., state publisher)
+- URDF from `robot_description`
+
+---
+
+## 2. 🛠️ Fix: Simulation Resource Path
+
+To fix errors like:
+
+> `Waiting messages on topic [robot_description]. Entity creation successful. But world has no model.`
+
+You needed to export the model path for Gazebo to find the robot meshes and URDF:
+
+```bash
+export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:~/ros2_ws/install/kortex_description/share
+```
+
+✅ **Add to `.bashrc`** for persistence.
+
+---
+
+## 3. 📷 Add Virtual Camera to Simulation
+
+You extended the world file (`empty_world.sdf`) to include a **camera sensor**, using `<sensor>` and the correct Gazebo plugins (or Ignition equivalents).
+
+However, Gazebo failed to load the camera plugin:
+
+```
+[Err] Failed to load system plugin [libgz-sim-camera-system.so]
+```
+
+This means the plugin or its path is missing.
+
+---
+
+## 4. 📦 Install Required ROS-Gazebo Bridge Packages
+
+You ensured the bridge packages were installed:
+
+```bash
+sudo apt install ros-jazzy-ros-gz-bridge ros-jazzy-ros-gz-interfaces
+```
+
+✅ Rebuilt your workspace:
+
+```bash
+colcon build --symlink-install --packages-select kinova_gen3_lite_sim
+```
+
+---
+
+## 5. 🔄 Bridge Camera Topic
+
+You used `ros_gz_bridge` to bridge the Gazebo camera image topic:
+
+```bash
+ros2 run ros_gz_bridge parameter_bridge /camera/image@sensor_msgs/msg/Image[ignition.msgs.Image
+```
+
+This bridges Gazebo image data to ROS 2, under `/camera/image`.
+
+---
+
+## 6. 💾 Create Image Logging Node
+
+You developed `image_saver`, a ROS 2 node that:
+- Subscribes to `/camera/image`
+- Saves received images to `/tmp/sim_images`
+
+Initial error due to missing dependency:
+
+```bash
+ImportError: libfdk-aac.so.1: cannot open shared object file
+```
+
+✅ Fixed by installing:
+
+```bash
+sudo apt install libfdk-aac2 libfdk-aac-dev
+```
+
+---
+
+## 7. 🤖 Automate Pose & Image Generation
+
+You created `auto_data_collector`, which:
+- Publishes random joint positions
+- Waits for images and triggers `image_saver`
+
+```bash
+ros2 run kinova_gen3_lite_sim auto_data_collector
+```
+
+But encountered warnings:
+
+```
+Image not ready — skipping this round
+```
+
+📌 Root Cause: No image data was being published — the camera system plugin was not loaded successfully.
+
+---
+
+## 8. 🔍 Diagnosis of Camera Plugin Issue
+
+Attempts made:
+- Installed system plugin libraries: `libgazebo_ros_camera.so`, `libgz-sim-camera-system.so`
+- Checked with `locate`, but no libraries were found.
+- Verified plugin load errors in Gazebo logs.
+
+```bash
+locate libgazebo_ros_camera.so
+locate libgz-sim-camera-system.so
+```
+
+No matches ⇒ plugin is likely **not installed** or Gazebo version mismatch.
+
+---
+
+## ✅ Next Steps
+
+1. **Fix Camera Plugin**:
+   - Install `gz-sim` camera system plugins (`libgz-sim-camera-system.so`)
+   - Confirm correct Gazebo version (`Ignition Fortress`, `Gazebo Harmonic`, etc.)
+
+2. **Verify Camera in World or Robot**:
+   - Make sure the `<sensor>` tag is inside a valid `<link>`
+   - Use Ignition’s supported camera plugin (e.g., `gz::sim::systems::CameraSensor`)
+
+3. **Set Plugin Path** (if necessary):
+
+```bash
+export GZ_SIM_SYSTEM_PLUGIN_PATH=/opt/ros/jazzy/lib/
+```
+
+4. **Visual Debug**:
+   - Open Gazebo client and check if the camera appears in the scene
+
+---
+
+## 🗂️ Files Used
+
+- `sim_launch.py`: ROS 2 launch script
+- `empty_world.sdf`: Custom world file with sensors
+- `image_saver.py`: Image logging node
+- `auto_data_collector.py`: Data generation controller
+
+---
+
+<br><br><br><br><br><br>
+
+
+# 🛠️ Debugging Camera Plugin Errors in Gazebo Harmonic (ROS 2 Jazzy)
+
+This guide documents the process of identifying and fixing plugin loading issues when using camera sensors with **Gazebo Harmonic (gz-sim 9)** and **ROS 2 Jazzy**.
+
+---
+
+## 🚨 Initial Error
+
+After configuring the camera plugins in the SDF world file and launching the simulation using:
+
+```bash
+ros2 launch kinova_gen3_lite_sim sim_launch.py
+```
+
+Gazebo produced the following error:
+
+```
+[gz-2] [Err] [SystemLoader.cc:92] Failed to load system plugin [libgazebo_ros_camera.so] : Could not find shared library.
+```
+
+### 🔍 Cause
+
+This happened because the SDF file was referencing a **Gazebo Classic** plugin (`libgazebo_ros_camera.so`) which is **not compatible with Gazebo Harmonic** (part of the Ignition/Gazebo Fortress+ line, now called "Gazebo").
+
+---
+
+## 🧪 Attempted Fixes
+
+We tried to switch to Ignition-style plugins like:
+
+```xml
+<plugin name="gazebo_ros_camera" filename="ignition-gazebo-ros-camera-system">
+```
+
+However, this produced another error:
+
+```
+[gz-2] [Err] [Server.cc:86] Error parsing XML in file [...]: XMLElement name=plugin
+```
+
+This was due to:
+
+* Incorrect or missing closing tags in the SDF.
+* Plugin names that do **not match actual plugin class names**.
+
+---
+
+## 🔍 Discovering Available Plugins
+
+We attempted to locate installed system plugins using:
+
+```bash
+find /usr/lib /usr/lib64 -name "*ros-gz-*-system.so"
+```
+
+Eventually, we discovered that the available plugins on the system were located at:
+
+```
+/usr/lib/x86_64-linux-gnu/gz-sim-9/plugins/
+```
+
+With files such as:
+
+```
+libgz-sim-logical-camera-system.so
+libgz-sim-camera-video-recorder-system.so
+```
+
+But Gazebo still failed to load them, showing:
+
+```
+[gz-2] [Err] [SystemLoader.cc:164] Failed to load system plugin: (Reason: library does not contain requested plugin)
+[gz-2] - Requested plugin name: [logical_camera_plugin]
+[gz-2] - Requested library name: [libgz-sim-logical-camera-system.so]
+[gz-2] - Detected Plugins:
+[gz-2]   - gz::sim::v8::systems::LogicalCamera
+```
+
+---
+
+## 🧩 Root Cause
+
+The `<plugin>` tag in the SDF used an incorrect `name` attribute:
+
+```xml
+<plugin name="logical_camera_plugin" filename="libgz-sim-logical-camera-system.so">
+```
+
+Gazebo doesn’t load plugins by the `name` you choose — it requires the **actual exported class name** inside the `.so` file, which was printed in the error log:
+
+```
+gz::sim::v8::systems::LogicalCamera
+```
+
+---
+
+## ✅ Final Working Configuration
+
+Update your SDF file to use the correct plugin class name:
+
+```xml
+<plugin name="gz::sim::systems::LogicalCamera" filename="libgz-sim-logical-camera-system.so">
+  <topic>/logical_camera</topic>
+  <update_rate>30</update_rate>
+</plugin>
+```
+
+Even though the plugin was built under gz-sim 9 (v9), Gazebo exports its class under the `v8` namespace — this is **normal and expected**.
+
+---
+
+## 🧠 Tips for Future Debugging
+
+* Gazebo always prints **detected plugins** in its error message. Use these names exactly in your `<plugin>` tag.
+* To inspect what a plugin library contains, use:
+
+```bash
+strings libgz-sim-logical-camera-system.so | grep systems
+```
+
+* Plugin `.so` filenames do **not** always match the class names — always refer to the Gazebo logs to confirm.
+* System plugins live in:
+  `/usr/lib/x86_64-linux-gnu/gz-sim-9/plugins/`
+
+---

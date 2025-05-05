@@ -1,0 +1,42 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="empty_world">
+
+    <!-- Ground plane -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Ground Plane</uri>
+    </include>
+
+    <!-- Sun light -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Sun</uri>
+    </include>
+
+    <!-- RGBD Camera Model -->
+    <model name="camera_model">
+      <static>true</static>
+      <link name="camera_link">
+        <pose>0 0 2 0 0 0</pose>
+
+        <!-- Logical Camera Sensor -->
+        <sensor name="logical_camera" type="logical_camera">
+          <pose>0 0 0 0 0 0</pose>
+          <logical_camera>
+            <horizontal_fov>1.5708</horizontal_fov>
+            <aspect_ratio>1.333</aspect_ratio>
+            <near>0.1</near>
+            <far>10</far>
+          </logical_camera>
+          <update_rate>30</update_rate>
+          <always_on>true</always_on>
+        </sensor>
+      </link>
+
+      <!-- Use available logical camera plugin -->
+      <plugin name="gz::sim::systems::LogicalCamera" filename="libgz-sim-logical-camera-system.so">
+        <topic>/logical_camera</topic>
+        <update_rate>30</update_rate>
+      </plugin>
+    </model>
+  </world>
+</sdf>
