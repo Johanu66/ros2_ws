@@ -4,7 +4,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-import cv2
+import cv2 # type: ignore
 from cv_bridge import CvBridge
 import os
 import numpy as np
@@ -18,7 +18,7 @@ class AutoDataCollector(Node):
         os.makedirs(self.output_dir, exist_ok=True)
 
         self.bridge = CvBridge()
-        self.image_sub = self.create_subscription(Image, '/camera/image', self.image_callback, 10)
+        self.image_sub = self.create_subscription(Image, '/camera/rgbd/image', self.image_callback, 10)
         self.joint_pub = self.create_publisher(JointTrajectory, '/joint_trajectory_controller/joint_trajectory', 10)
 
         self.timer = self.create_timer(5.0, self.timer_callback)  # Trigger every 5 sec
@@ -37,7 +37,8 @@ class AutoDataCollector(Node):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             self.current_image = cv_image
-            self.image_ready = True
+            self.image_ready = True  # Mark image as ready for saving
+            self.get_logger().info(f"Received image of shape: {cv_image.shape}")
         except Exception as e:
             self.get_logger().error(f"Failed to convert image: {e}")
 
@@ -47,9 +48,7 @@ class AutoDataCollector(Node):
             rclpy.shutdown()
             return
 
-        self.move_to_random_pose()
-        time.sleep(2)  # wait for robot to stabilize
-
+        # Make sure that we are saving only one image at a time
         if self.image_ready:
             filename = os.path.join(self.output_dir, f"image_{self.index:05d}.png")
             cv2.imwrite(filename, self.current_image)
@@ -58,6 +57,9 @@ class AutoDataCollector(Node):
             self.image_ready = False
         else:
             self.get_logger().warn("Image not ready — skipping this round.")
+
+        self.move_to_random_pose()
+        time.sleep(2)  # wait for robot to stabilize
 
     def move_to_random_pose(self):
         point = JointTrajectoryPoint()

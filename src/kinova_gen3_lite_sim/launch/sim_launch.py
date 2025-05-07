@@ -11,7 +11,6 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
     # Launch arguments
     use_sim_time = LaunchConfiguration("use_sim_time")
-    world_name = LaunchConfiguration("world")
 
     # Package paths
     pkg_ros_gz_sim = get_package_share_directory("ros_gz_sim")
@@ -51,10 +50,23 @@ def generate_launch_description():
         arguments=["-name", "gen3_lite", "-file", urdf_path],
     )
 
+    # Bridge for logical camera
+    camera_bridge = Node(
+        package="ros_gz_bridge",
+        executable="parameter_bridge",
+        name="camera_bridge",
+        output="screen",
+        arguments=[
+            "/camera/rgbd/image@sensor_msgs/msg/Image[ignition.msgs.Image"
+        ]
+    )
+
+
     return LaunchDescription([
         DeclareLaunchArgument("use_sim_time", default_value="true", description="Use simulation time"),
         DeclareLaunchArgument("world", default_value="empty_world.sdf", description="Name of the world SDF file"),
         gz_sim,
         robot_state_pub,
-        TimerAction(period=3.0, actions=[spawn_robot])
+        TimerAction(period=3.0, actions=[spawn_robot]),
+        camera_bridge
     ])
