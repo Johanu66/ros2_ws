@@ -8,5 +8,6 @@
         "/home/lab/ros2_ws/build/my_robot_controller",
         "/home/lab/ros2_ws/install/my_robot_controller/lib/python3.12/site-packages",
         "/opt/ros/jazzy/lib/python3.12/site-packages"
-    ]
+    ],
+    "cmake.sourceDirectory": "/home/lab/ros2_ws/src/gz-plugin"
 }

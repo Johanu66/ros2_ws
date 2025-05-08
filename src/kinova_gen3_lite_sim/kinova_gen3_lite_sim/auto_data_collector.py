@@ -9,6 +9,7 @@ from cv_bridge import CvBridge
 import os
 import numpy as np
 import time
+from rclpy.qos import qos_profile_sensor_data
 
 class AutoDataCollector(Node):
     def __init__(self):
@@ -18,7 +19,12 @@ class AutoDataCollector(Node):
         os.makedirs(self.output_dir, exist_ok=True)
 
         self.bridge = CvBridge()
-        self.image_sub = self.create_subscription(Image, '/camera/rgbd/image', self.image_callback, 10)
+        self.image_sub = self.create_subscription(
+            Image,
+            '/camera/rgbd/image',
+            self.image_callback,
+            qos_profile_sensor_data
+        )
         self.joint_pub = self.create_publisher(JointTrajectory, '/joint_trajectory_controller/joint_trajectory', 10)
 
         self.timer = self.create_timer(5.0, self.timer_callback)  # Trigger every 5 sec

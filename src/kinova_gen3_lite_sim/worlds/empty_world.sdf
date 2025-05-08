@@ -1,7 +1,6 @@
 <?xml version="1.0" ?>
 <sdf version="1.8">
   <world name="empty_world">
-
     <!-- Ground plane -->
     <include>
       <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Ground Plane</uri>
@@ -15,7 +14,7 @@
     <!-- RGBD Camera Model (from Version 2) -->
     <model name="rgbd_camera">
       <static>true</static>
-      <pose>0 0 2 0 0 0</pose>
+      <pose>-20 0 10 0 0.5 0</pose>
       <link name="camera_link">
         <sensor name="rgbd_camera" type="rgbd_camera">
           <pose>0 0 0 0 0 0</pose>
@@ -44,7 +43,42 @@
       </link>
     </model>
 
-    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors"/>
-
+    <plugin
+      filename="gz-sim-sensors-system"
+      name="gz::sim::systems::Sensors">
+    </plugin>
+    <plugin
+      filename="gz-sim-physics-system"
+      name="gz::sim::systems::Physics">
+    </plugin>
+    <plugin
+      filename="gz-sim-air-pressure-system"
+      name="gz::sim::systems::AirPressure">
+    </plugin>
+    <plugin
+      filename="gz-sim-altimeter-system"
+      name="gz::sim::systems::Altimeter">
+    </plugin>
+    <plugin
+      filename="gz-sim-imu-system"
+      name="gz::sim::systems::Imu">
+    </plugin>
+    <plugin
+      filename="gz-sim-magnetometer-system"
+      name="gz::sim::systems::Magnetometer">
+    </plugin>
+    <plugin
+      filename="gz-sim-forcetorque-system"
+      name="gz::sim::systems::ForceTorque">
+      <gz::system_priority>10</gz::system_priority>
+    </plugin>
+    <plugin
+      filename="gz-sim-user-commands-system"
+      name="gz::sim::systems::UserCommands">
+    </plugin>
+    <plugin
+      filename="gz-sim-scene-broadcaster-system"
+      name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
   </world>
 </sdf>
