@@ -22,7 +22,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            "auto_data_collector = kinova_gen3_lite_sim.auto_data_collector:main",
+            "auto_motion_explorer = kinova_gen3_lite_sim.auto_motion_explorer:main",
+            "image_saver = kinova_gen3_lite_sim.image_saver:main",
         ],
     },
 )

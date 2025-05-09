@@ -61,6 +61,14 @@ def generate_launch_description():
         ]
     )
 
+    image_saver = Node(
+        package="kinova_gen3_lite_sim",
+        executable="image_saver",
+        name="image_saver",
+        output="screen"
+    )
+
+
 
     return LaunchDescription([
         DeclareLaunchArgument("use_sim_time", default_value="true", description="Use simulation time"),
@@ -68,5 +76,6 @@ def generate_launch_description():
         gz_sim,
         robot_state_pub,
         TimerAction(period=3.0, actions=[spawn_robot]),
-        camera_bridge
+        camera_bridge,
+        image_saver
     ])
