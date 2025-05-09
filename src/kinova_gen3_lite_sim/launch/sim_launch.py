@@ -1,9 +1,8 @@
 import os
-
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
@@ -16,8 +15,13 @@ def generate_launch_description():
     pkg_ros_gz_sim = get_package_share_directory("ros_gz_sim")
     pkg_kinova_sim = get_package_share_directory("kinova_gen3_lite_sim")
 
-    urdf_path = os.path.join(pkg_kinova_sim, "urdf", "gen3_lite.urdf")
+    # Xacro file for the robot description
+    xacro_file = os.path.join(pkg_kinova_sim, "urdf", "gen3_lite_gen3_lite_2f.xacro")
+    robot_description_content = Command(["xacro ", xacro_file, " sim_gazebo:=true"])
+    robot_description = {"robot_description": robot_description_content}
 
+
+    # World file path
     world_path = PathJoinSubstitution([
         pkg_kinova_sim,
         "worlds",
@@ -37,8 +41,7 @@ def generate_launch_description():
         package="robot_state_publisher",
         executable="robot_state_publisher",
         output="screen",
-        parameters=[{"use_sim_time": use_sim_time}],
-        arguments=[urdf_path],
+        parameters=[robot_description, {"use_sim_time": use_sim_time}],
     )
 
     # Robot spawn
@@ -47,7 +50,7 @@ def generate_launch_description():
         executable="create",
         name="spawn_gen3_lite",
         output="screen",
-        arguments=["-name", "gen3_lite", "-file", urdf_path],
+        arguments=["-name", "gen3_lite", "-string", robot_description_content],
     )
 
     # Bridge for logical camera
@@ -61,6 +64,7 @@ def generate_launch_description():
         ]
     )
 
+    # Image saver node
     image_saver = Node(
         package="kinova_gen3_lite_sim",
         executable="image_saver",
@@ -68,8 +72,7 @@ def generate_launch_description():
         output="screen"
     )
 
-
-
+    # Return LaunchDescription
     return LaunchDescription([
         DeclareLaunchArgument("use_sim_time", default_value="true", description="Use simulation time"),
         DeclareLaunchArgument("world", default_value="empty_world.sdf", description="Name of the world SDF file"),
