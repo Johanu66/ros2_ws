@@ -1,7 +1,7 @@
 
 ---
 
-# 📘 Kinova Gen3 Lite – Simulated Data Generation for Vision-Based Learning
+# I - 📘 Kinova Gen3 Lite – Simulated Data Generation for Vision-Based Learning
 
 ## 🧰 Objective
 Use a **simulated Kinova Gen3 Lite robotic arm** in **Gazebo (via ros_gz_sim)** to generate **synthetic image data** from virtual sensors (cameras), for training vision-based robot policies.
@@ -168,7 +168,7 @@ export GZ_SIM_SYSTEM_PLUGIN_PATH=/opt/ros/jazzy/lib/
 <br><br><br><br><br><br>
 
 
-# 🛠️ Debugging Camera Plugin Errors in Gazebo Harmonic (ROS 2 Jazzy)
+# II - 🛠️ Debugging Camera Plugin Errors in Gazebo Harmonic (ROS 2 Jazzy)
 
 This guide documents the process of identifying and fixing plugin loading issues when using camera sensors with **Gazebo Harmonic (gz-sim 9)** and **ROS 2 Jazzy**.
 
@@ -291,5 +291,196 @@ strings libgz-sim-logical-camera-system.so | grep systems
 * Plugin `.so` filenames do **not** always match the class names — always refer to the Gazebo logs to confirm.
 * System plugins live in:
   `/usr/lib/x86_64-linux-gnu/gz-sim-9/plugins/`
+
+---
+
+
+<br><br><br><br><br><br>
+
+
+# III - 🧾 **Report: Resolving Camera Plugin & Bridge Issues in ROS 2 + Ignition Gazebo**
+
+### 🎯 **Objective**
+
+Enable RGBD camera simulation in Ignition Gazebo and bridge its output to ROS 2 so images can be accessed for data collection.
+
+---
+
+### 🔍 **Initial Issues**
+
+* The **camera plugin (`libgz-sim-camera-system.so`)** failed to load in Gazebo.
+* **Image data was not being published**, either in simulation or through ROS 2.
+* World and robot failed to initialize correctly due to incomplete or incompatible SDF/plugin configuration.
+
+---
+
+### ✅ **Solution Approach**
+
+#### 🧩 1. **Plugin System Composition**
+
+We replaced the monolithic camera plugin with a **composite set of system plugins** to properly initialize simulation components. These included:
+
+```xml
+<plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors"/>
+<plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+<plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure"/>
+<plugin filename="gz-sim-altimeter-system" name="gz::sim::systems::Altimeter"/>
+<plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+<plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer"/>
+<plugin filename="gz-sim-forcetorque-system" name="gz::sim::systems::ForceTorque">
+  <gz::system_priority>10</gz::system_priority>
+</plugin>
+<plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+<plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+```
+
+✅ This resolved the **camera system load failure** and enabled sensor initialization.
+
+---
+
+#### 🔄 2. **Sensor & World Integration**
+
+* Integrated a **standard RGBD camera model** from the GazeboSim GitHub repository into a custom world file.
+* Ensured proper `<sensor>` tags and associated `<plugin>` tags were declared within the camera model SDF.
+* Synced world names with service endpoints to avoid world load timing issues.
+
+---
+
+#### 🌉 3. **ROS 2 Bridge Setup**
+
+* Used the `ros_gz_bridge` with a **parameter bridge**:
+
+  ```bash
+  ros2 run ros_gz_bridge parameter_bridge /camera/rgbd/image@sensor_msgs/msg/Image[ignition.msgs.Image
+  ```
+* Confirmed that image frames are now **correctly published** to a ROS 2 topic:
+  `/camera/rgbd/image`
+
+✅ The bridge successfully relays RGBD camera data from Ignition Gazebo to ROS 2.
+
+---
+
+### 📸 **Result**
+
+* Every image frame from the simulated camera is now:
+
+  * Published on a **Gazebo topic**
+  * Bridged and available as a **ROS 2 topic**
+* Camera visualization tools like `showimage` can access these images in real time.
+
+---
+
+### 🧭 **Next Step**
+
+➡ **Subscribe to the ROS 2 topic** and **save each image frame to disk** using a custom ROS 2 node (`auto_data_collector`).
+
+---
+
+
+Here is a structured report summarizing the work and progress made during the simulation setup and image data collection in Ignition Gazebo with ROS 2:
+
+---
+
+
+<br><br><br><br><br><br>
+
+# IV - **Progress Report: Simulation & Image Data Capture in Ignition Gazebo with ROS 2**
+
+### **Objective**
+
+Establish a robust Gazebo-based simulation for the Kinova Gen3 Lite robot with integrated RGBD camera, allowing automated data collection and robot movement control within the ROS 2 ecosystem.
+
+---
+
+### **1. Initial Challenges & Plugin Failures**
+
+* Encountered **critical plugin load failure** for `libgz-sim-camera-system.so`, preventing RGBD camera initialization.
+* Investigation revealed compatibility issues between **Gazebo Classic and Ignition Gazebo (gz-sim)**.
+* Reviewed plugin paths, shared library availability, and model URIs to debug the issue.
+* Adjusted the simulation world to use **system plugins** (`Sensors`, `Physics`, `ForceTorque`, etc.) to ensure proper camera support and sensor processing.
+
+---
+
+### **2. World File and Camera Model Fixes**
+
+* Analyzed and merged two world files:
+
+  * A minimal base world with logical camera setup.
+  * A complete RGBD world model from **Gazebo Fuel**.
+* Created a **custom SDF world** that integrates the RGBD camera.
+* Resolved issues related to:
+
+  * World name mismatches in the service namespace (`/world/.../create`).
+  * Missing `<inertial>` tags and fixed joint mishandling in URDF → SDF conversion.
+
+---
+
+### **3. ROS-Gazebo Bridge Integration**
+
+* Successfully launched the `ros_gz_bridge` node with the appropriate bridge configuration:
+
+  ```bash
+  /camera/rgbd/image@sensor_msgs/msg/Image[ignition.msgs.Image
+  ```
+* Confirmed image data publication from Gazebo to ROS 2 over `/camera/rgbd/image`.
+
+---
+
+### **4. Camera Image Calibration**
+
+* Before saving data, camera **intrinsic parameters** (focal length, principal point, distortion coefficients) were reviewed and validated.
+* The simulated camera model was configured with appropriate parameters in my **custom SDF world**, image dimensions, and near/far clipping range.
+
+---
+
+### **5. Image Collection Node Refactor**
+
+#### **Issue**
+
+* The original `auto_data_collector` node failed to subscribe correctly to the RGBD topic.
+
+  * This was due to timing issues, incorrect topic remapping, and coupling of unrelated logic.
+
+#### **Solution**
+
+* **Split the node into two focused classes**:
+
+  1. `ImageSaver` — handles image subscription and saving to disk.
+  2. `AutoMotionExplorer` — handles robot movement and control.
+
+---
+
+### **6. ImageSaver Implementation**
+
+* Implemented `ImageSaver` as a minimal `rclpy` node:
+
+  * Subscribes to `/camera/rgbd/image`.
+  * Converts incoming `sensor_msgs/Image` using OpenCV (`cv_bridge`).
+  * Saves images with timestamps to a specified directory.
+* Verified functionality by confirming disk writes of RGB images during simulation runtime.
+
+---
+
+### **7. Current Status**
+
+| Component               | Status                                    |
+| ----------------------- | ----------------------------------------- |
+| Gazebo Simulation       | ✅ Working                                 |
+| Kinova URDF Integration | ✅ Working                                 |
+| RGBD Camera in World    | ✅ Working                                 |
+| Sensor Plugins          | ✅ Working                                 |
+| ros\_gz\_bridge         | ✅ Working                                 |
+| Camera Calibration      | ✅ Verified                                |
+| ImageSaver Node         | ✅ Saving images correctly                 |
+| auto\_motion\_explorer  | 🛠️ To be integrated with motion planning |
+
+---
+
+### **Next Steps**
+
+* Finalize and integrate `auto_motion_explorer` to automate robot movement.
+* Sync image capture with robot pose data for dataset generation.
+* Add depth image and TF recording for full scene annotation.
+* Package and document launch/config setup for reproducibility.
 
 ---
