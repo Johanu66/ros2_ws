@@ -15,6 +15,7 @@ setup(
         ('share/' + package_name + '/urdf', ['urdf/kortex_robot.xacro']),
         ('share/' + package_name + '/urdf', ['urdf/kinova.urdf.xacro']),
         ('share/' + package_name + '/urdf', ['urdf/gen3_lite_gen3_lite_2f.xacro']),
+        ('share/' + package_name + '/config', ['config/ros2_controllers.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

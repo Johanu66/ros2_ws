@@ -1,10 +1,13 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction, ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
+from launch.event_handlers import OnProcessExit
+from launch.actions import RegisterEventHandler
+
 
 
 def generate_launch_description():
@@ -53,6 +56,18 @@ def generate_launch_description():
         arguments=["-name", "gen3_lite", "-string", robot_description_content],
     )
 
+    controller_manager = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        parameters=[
+            robot_description,
+            {"use_sim_time": use_sim_time},
+            os.path.join(pkg_kinova_sim, "config", "ros2_controllers.yaml")
+        ],
+        output="screen"
+    )
+
+
     # Bridge for logical camera
     camera_bridge = Node(
         package="ros_gz_bridge",
@@ -65,12 +80,12 @@ def generate_launch_description():
     )
 
     # Image saver node
-    image_saver = Node(
-        package="kinova_gen3_lite_sim",
-        executable="image_saver",
-        name="image_saver",
-        output="screen"
-    )
+    # image_saver = Node(
+    #     package="kinova_gen3_lite_sim",
+    #     executable="image_saver",
+    #     name="image_saver",
+    #     output="screen"
+    # )
 
     # Return LaunchDescription
     return LaunchDescription([
@@ -79,6 +94,51 @@ def generate_launch_description():
         gz_sim,
         robot_state_pub,
         TimerAction(period=3.0, actions=[spawn_robot]),
+        
+        RegisterEventHandler(
+            event_handler=OnProcessExit(
+                target_action=spawn_robot,
+                on_exit=[controller_manager],
+            )
+        ),
+
+        # Delay before spawning controllers to ensure robot is spawned
+        TimerAction(
+            period=5.0,
+            actions=[
+                ExecuteProcess(
+                    cmd=[
+                        "ros2 run controller_manager spawner joint_state_broadcaster --controller-manager /controller_manager"
+                    ],
+                    shell=True
+                ),
+                ExecuteProcess(
+                    cmd=[
+                        "ros2 run controller_manager spawner gen3_lite_joint_trajectory_controller --controller-manager /controller_manager"
+                    ],
+                    shell=True
+                ),
+                ExecuteProcess(
+                    cmd=[
+                        "ros2 run controller_manager spawner gen3_lite_2f_gripper_controller --controller-manager /controller_manager"
+                    ],
+                    shell=True
+                ),
+                ExecuteProcess(
+                    cmd=[
+                        "ros2 run controller_manager spawner twist_controller --controller-manager /controller_manager"
+                    ],
+                    shell=True
+                ),
+                ExecuteProcess(
+                    cmd=[
+                        "ros2 run controller_manager spawner fault_controller --controller-manager /controller_manager"
+                    ],
+                    shell=True
+                ),
+            ]
+        ),
+
         camera_bridge,
-        image_saver
+        # image_saver
     ])
