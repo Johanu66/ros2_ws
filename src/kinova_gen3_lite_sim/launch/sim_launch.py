@@ -1,45 +1,38 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction, ExecuteProcess
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess, RegisterEventHandler
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-from launch.event_handlers import OnProcessExit
-from launch.actions import RegisterEventHandler
-
 
 
 def generate_launch_description():
-    # Launch arguments
-    use_sim_time = LaunchConfiguration("use_sim_time")
+    # Declare launch arguments
+    use_sim_time = True
+    world = LaunchConfiguration("world")
 
-    # Package paths
+    # Get package paths
     pkg_ros_gz_sim = get_package_share_directory("ros_gz_sim")
     pkg_kinova_sim = get_package_share_directory("kinova_gen3_lite_sim")
 
-    # Xacro file for the robot description
-    xacro_file = os.path.join(pkg_kinova_sim, "urdf", "gen3_lite_gen3_lite_2f.xacro")
+    # Robot description (Xacro → URDF)
+    xacro_file = os.path.join(pkg_kinova_sim, "urdf", "gen3_lite.urdf.xacro")
     robot_description_content = Command(["xacro ", xacro_file, " sim_gazebo:=true"])
     robot_description = {"robot_description": robot_description_content}
 
-
-    # World file path
-    world_path = PathJoinSubstitution([
-        pkg_kinova_sim,
-        "worlds",
-        LaunchConfiguration("world")
-    ])
-
+    # Gazebo world
+    world_path = PathJoinSubstitution([pkg_kinova_sim, "worlds", world])
     gz_sim_launch = PathJoinSubstitution([pkg_ros_gz_sim, "launch", "gz_sim.launch.py"])
 
-    # Gazebo launch (gz sim)
+    # Launch Gazebo
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(gz_sim_launch),
         launch_arguments={"gz_args": [world_path, " -r -v 4"]}.items(),
     )
 
-    # State publisher
+    # Robot state publisher
     robot_state_pub = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
@@ -47,7 +40,7 @@ def generate_launch_description():
         parameters=[robot_description, {"use_sim_time": use_sim_time}],
     )
 
-    # Robot spawn
+    # Spawn the robot in Gazebo
     spawn_robot = Node(
         package="ros_gz_sim",
         executable="create",
@@ -56,19 +49,36 @@ def generate_launch_description():
         arguments=["-name", "gen3_lite", "-string", robot_description_content],
     )
 
+    # Launch ros2_control_node (controller manager)
     controller_manager = Node(
         package="controller_manager",
         executable="ros2_control_node",
+        name="controller_manager",
+        output="screen",
         parameters=[
             robot_description,
             {"use_sim_time": use_sim_time},
-            os.path.join(pkg_kinova_sim, "config", "ros2_controllers.yaml")
+            os.path.join(pkg_kinova_sim, "config", "ros2_controllers.yaml"),
         ],
-        output="screen"
     )
 
+    # Controllers to spawn
+    controllers = [
+        "joint_state_broadcaster",
+        "gen3_lite_joint_trajectory_controller",
+        "gen3_lite_2f_gripper_controller",
+        "twist_controller",
+        "fault_controller",
+    ]
 
-    # Bridge for logical camera
+    spawn_controller_processes = [
+        ExecuteProcess(
+            cmd=["ros2", "run", "controller_manager", "spawner", controller],
+            output="screen",
+        ) for controller in controllers
+    ]
+
+    # Bridge for camera
     camera_bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
@@ -79,66 +89,47 @@ def generate_launch_description():
         ]
     )
 
-    # Image saver node
-    # image_saver = Node(
-    #     package="kinova_gen3_lite_sim",
-    #     executable="image_saver",
-    #     name="image_saver",
-    #     output="screen"
-    # )
+    # Optional image_saver node (disabled by default)
+    image_saver = Node(
+        package="kinova_gen3_lite_sim",
+        executable="image_saver",
+        name="image_saver",
+        output="screen"
+    )
 
-    # Return LaunchDescription
+    # LaunchDescription
     return LaunchDescription([
         DeclareLaunchArgument("use_sim_time", default_value="true", description="Use simulation time"),
-        DeclareLaunchArgument("world", default_value="empty_world.sdf", description="Name of the world SDF file"),
+        DeclareLaunchArgument("world", default_value="empty_world.sdf", description="World to load"),
+
+        # Step 1: Launch Gazebo
         gz_sim,
+
+        # Step 2: Robot State Publisher
         robot_state_pub,
-        TimerAction(period=3.0, actions=[spawn_robot]),
-        
+
+        # Step 3: Spawn robot into Gazebo
+        spawn_robot,
+
+        # Step 4: Start ros2_control only after robot is spawned
+        # RegisterEventHandler(
+        #     OnProcessExit(
+        #         target_action=spawn_robot,
+        #         on_exit=[controller_manager],
+        #     )
+        # ),
+
+        # Step 5: Spawn controllers after ros2_control is up
         RegisterEventHandler(
-            event_handler=OnProcessExit(
+            OnProcessExit(
                 target_action=spawn_robot,
-                on_exit=[controller_manager],
+                on_exit=spawn_controller_processes,
             )
         ),
 
-        # Delay before spawning controllers to ensure robot is spawned
-        TimerAction(
-            period=5.0,
-            actions=[
-                ExecuteProcess(
-                    cmd=[
-                        "ros2 run controller_manager spawner joint_state_broadcaster --controller-manager /controller_manager"
-                    ],
-                    shell=True
-                ),
-                ExecuteProcess(
-                    cmd=[
-                        "ros2 run controller_manager spawner gen3_lite_joint_trajectory_controller --controller-manager /controller_manager"
-                    ],
-                    shell=True
-                ),
-                ExecuteProcess(
-                    cmd=[
-                        "ros2 run controller_manager spawner gen3_lite_2f_gripper_controller --controller-manager /controller_manager"
-                    ],
-                    shell=True
-                ),
-                ExecuteProcess(
-                    cmd=[
-                        "ros2 run controller_manager spawner twist_controller --controller-manager /controller_manager"
-                    ],
-                    shell=True
-                ),
-                ExecuteProcess(
-                    cmd=[
-                        "ros2 run controller_manager spawner fault_controller --controller-manager /controller_manager"
-                    ],
-                    shell=True
-                ),
-            ]
-        ),
-
+        # Step 6: Camera bridge
         camera_bridge,
-        # image_saver
+
+        # Step 7: Optional image saver
+        image_saver,
     ])
