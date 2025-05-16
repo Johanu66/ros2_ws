@@ -6,7 +6,7 @@ This project provides a complete environment for working with a Kinova Gen3 Lite
 
 * [Project Requirements](INSTALL.md) - Detailed setup instructions and dependencies
 * [ROS 2 Basics Tutorial](notes/ros2_basics.ipynb) - Learn the fundamentals of ROS 2
-* [Kinova Gen3 Lite Simulation Documentation](src/kinova_gen3_lite_sim/README)
+* [Kinova Gen3 Lite Simulation Documentation](src/kinova_gen3_lite_sim/README.md)
 
 ## 🚀 Getting Started
 
@@ -50,7 +50,7 @@ Interactive tutorial covering:
 - Building packages and working with parameters
 - TF2 and visualization
 
-### [Kinova Gen3 Lite Simulation](src/kinova_gen3_lite_sim/README)
+### [Kinova Gen3 Lite Simulation](src/kinova_gen3_lite_sim/README.md)
 
 #### I. 📘 Simulated Data Generation for Vision-Based Learning
 Instructions for generating synthetic training data using the simulated robot.
@@ -87,7 +87,7 @@ The project includes various utilities for:
 
 ## 🔧 Troubleshooting
 
-For common issues with the simulation, camera plugins, or motion planning, refer to the debugging section in [Kinova Gen3 Lite Simulation documentation](src/kinova_gen3_lite_sim/README).
+For common issues with the simulation, camera plugins, or motion planning, refer to the debugging section in [Kinova Gen3 Lite Simulation documentation](src/kinova_gen3_lite_sim/README.md).
 
 ## 📝 License
 
