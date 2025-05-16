@@ -1,0 +1,16 @@
+#[apt] Installation commands:
+  sudo -H apt-get install ros-jazzy-launch-param-builder
+  sudo -H apt-get install ros-jazzy-turtlesim
+  sudo -H apt-get install ros-jazzy-example-interfaces
+  sudo -H apt-get install ros-jazzy-ompl
+  sudo -H apt-get install libomp-dev
+  sudo -H apt-get install ros-jazzy-ament-lint-auto
+  sudo -H apt-get install ros-jazzy-ament-lint-common
+  sudo -H apt-get install ros-jazzy-rosidl-default-generators
+  sudo -H apt-get install ros-jazzy-ros2cli-common-extensions
+  sudo -H apt-get install ros-jazzy-joy
+  sudo -H apt-get install ros-jazzy-ament-lint-cmake
+  sudo -H apt-get install ros-jazzy-ament-cmake-copyright
+  sudo -H apt-get install ros-jazzy-ament-cmake-lint-cmake
+  sudo -H apt-get install ros-jazzy-stomp
+  sudo -H apt-get install ros-jazzy-ament-cmake-xmllint

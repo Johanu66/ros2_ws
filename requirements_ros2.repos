@@ -1,0 +1,65 @@
+repositories:
+  gz-plugin:
+    type: git
+    url: https://github.com/gazebosim/gz-plugin
+    version: gz-plugin3
+  gz_ros2_control:
+    type: git
+    url: https://github.com/ros-controls/gz_ros2_control.git
+    version: jazzy
+  gz_sensors_vendor:
+    type: git
+    url: https://github.com/gazebo-release/gz_sensors_vendor.git
+    version: rolling
+  moveit2:
+    type: git
+    url: https://github.com/moveit/moveit2
+    version: main
+  moveit2_tutorials:
+    type: git
+    url: https://github.com/moveit/moveit2_tutorials
+    version: main
+  moveit_msgs:
+    type: git
+    url: https://github.com/moveit/moveit_msgs
+    version: ros2
+  moveit_resources:
+    type: git
+    url: https://github.com/moveit/moveit_resources
+    version: ros2
+  moveit_task_constructor:
+    type: git
+    url: https://github.com/moveit/moveit_task_constructor.git
+    version: ros2
+  moveit_visual_tools:
+    type: git
+    url: https://github.com/moveit/moveit_visual_tools
+    version: ros2
+  picknik_controllers:
+    type: git
+    url: https://github.com/sea-bass/picknik_controllers.git
+    version: fix-deprecated-realtime-tools-imports
+  ros2_kortex:
+    type: git
+    url: https://github.com/Kinovarobotics/ros2_kortex.git
+    version: main
+  ros2_robotiq_gripper:
+    type: git
+    url: https://github.com/PickNikRobotics/ros2_robotiq_gripper.git
+    version: main
+  ros_gz:
+    type: git
+    url: https://github.com/gazebosim/ros_gz.git
+    version: ros2
+  rviz_visual_tools:
+    type: git
+    url: https://github.com/PickNikRobotics/rviz_visual_tools.git
+    version: ros2
+  serial:
+    type: git
+    url: https://github.com/tylerjw/serial.git
+    version: ros2
+  vision_opencv:
+    type: git
+    url: https://github.com/ros-perception/vision_opencv.git
+    version: rolling

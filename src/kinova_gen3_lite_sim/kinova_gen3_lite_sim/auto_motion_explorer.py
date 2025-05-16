@@ -12,7 +12,7 @@ class AutoMotionExplorer(Node):
 
         self.joint_pub = self.create_publisher(
             JointTrajectory,
-            '/joint_trajectory_controller/joint_trajectory',
+            '/gen3_lite_joint_trajectory_controller/joint_trajectory',
             10
         )
 
