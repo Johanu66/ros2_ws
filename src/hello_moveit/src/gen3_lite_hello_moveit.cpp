@@ -1,7 +1,10 @@
-/*#include <memory>
+#include <memory>
+#include <cmath> // for M_PI
 
 #include <rclcpp/rclcpp.hpp>
 #include <moveit/move_group_interface/move_group_interface.hpp>
+#include <moveit_msgs/msg/constraints.hpp>
+#include <moveit_msgs/msg/joint_constraint.hpp>
 
 int main(int argc, char * argv[])
 {
@@ -15,12 +18,22 @@ int main(int argc, char * argv[])
   // Create a ROS logger
   auto const logger = rclcpp::get_logger("gen3_lite_hello_moveit");
 
-  // Next step goes here
   // Create the MoveIt MoveGroup Interface
   using moveit::planning_interface::MoveGroupInterface;
   auto move_group_interface = MoveGroupInterface(node, "arm");
 
-  // Set a target Pose
+  // Print joint limits for joint_2
+  auto joint_names = move_group_interface.getJointNames();
+  RCLCPP_INFO(logger, "Available joints:");
+  for (const auto& name : joint_names) {
+    RCLCPP_INFO(logger, " - %s", name.c_str());
+  }
+
+  // Log more information about planning capabilities
+  RCLCPP_INFO(logger, "Planning frame: %s", move_group_interface.getPlanningFrame().c_str());
+  RCLCPP_INFO(logger, "End effector link: %s", move_group_interface.getEndEffectorLink().c_str());
+
+  // Set a target Pose for the first movement
   auto const target_pose = []{
     geometry_msgs::msg::Pose msg;
     msg.orientation.w = 1.0;
@@ -29,26 +42,134 @@ int main(int argc, char * argv[])
     msg.position.z = 0.5;
     return msg;
   }();
-  move_group_interface.setPoseTarget(target_pose);
 
-  // Create a plan to that target pose
+  // Define the rest pose
+  auto const rest_pose = []{
+    geometry_msgs::msg::Pose msg;
+    msg.orientation.w = 0.183;
+    msg.orientation.x = 0.727;
+    msg.orientation.y = 0.637;
+    msg.orientation.z = 0.176;
+    msg.position.x = 0.218;
+    msg.position.y = 0.022;
+    msg.position.z = 0.028;   // Position de repos
+    return msg;
+  }();
+
+  // First movement - no constraints
+  move_group_interface.setPoseTarget(target_pose);
+  move_group_interface.clearPathConstraints();
+  
+  RCLCPP_INFO(logger, "Planning movement to initial target pose...");
   auto const [success, plan] = [&move_group_interface]{
     moveit::planning_interface::MoveGroupInterface::Plan msg;
     auto const ok = static_cast<bool>(move_group_interface.plan(msg));
     return std::make_pair(ok, msg);
   }();
 
-  // Execute the plan
   if(success) {
+    RCLCPP_INFO(logger, "Executing movement to initial target pose...");
     move_group_interface.execute(plan);
+    RCLCPP_INFO(logger, "Initial target pose reached");
   } else {
-    RCLCPP_ERROR(logger, "Planning failed!");
+    RCLCPP_ERROR(logger, "Planning to initial target failed!");
+    return 1;
+  }
+
+  // Try planning to the rest position without constraints first
+  RCLCPP_INFO(logger, "Planning movement to rest pose (no constraints)...");
+  move_group_interface.clearPathConstraints();
+  move_group_interface.setPoseTarget(rest_pose);
+  
+  auto const [success_rest_no_constraints, rest_plan_no_constraints] = [&move_group_interface]{
+    moveit::planning_interface::MoveGroupInterface::Plan msg;
+    auto const ok = static_cast<bool>(move_group_interface.plan(msg));
+    return std::make_pair(ok, msg);
+  }();
+  
+  // If this works, use the resulting joint values to inform our constraint
+  if (success_rest_no_constraints) {
+    RCLCPP_INFO(logger, "Successfully planned to rest pose without constraints");
+    
+    // Get the current joint values after planning
+    std::vector<double> joint_values = move_group_interface.getCurrentJointValues();
+    
+    if (joint_names.size() == joint_values.size()) {
+      for (size_t i = 0; i < joint_names.size(); i++) {
+        RCLCPP_INFO(logger, "Joint %s: %.3f rad (%.1f degrees)", 
+                   joint_names[i].c_str(), 
+                   joint_values[i], 
+                   joint_values[i] * 180.0 / M_PI);
+      }
+    }
+  }
+
+  // Now try with a more relaxed constraint
+  RCLCPP_INFO(logger, "Trying to plan with joint_2 constraint at -147 degrees...");
+  
+  // Create the constraint - use a more relaxed tolerance
+  moveit_msgs::msg::Constraints joint_constraints;
+  moveit_msgs::msg::JointConstraint joint2_constraint;
+  
+  // Convert -147 degrees to radians
+  double target_angle_rad = -147.0 * M_PI / 180.0;
+  
+  // Find the index of joint_2
+  int joint2_index = -1;
+  for (size_t i = 0; i < joint_names.size(); i++) {
+    if (joint_names[i] == "joint_2") {
+      joint2_index = i;
+      break;
+    }
+  }
+  
+  // Set up the constraint with more tolerance
+  joint2_constraint.joint_name = "joint_2";
+  joint2_constraint.position = target_angle_rad;
+  joint2_constraint.tolerance_above = 0.3;   // More tolerance (about 17 degrees)
+  joint2_constraint.tolerance_below = 0.3;   // More tolerance (about 17 degrees)
+  joint2_constraint.weight = 0.8;            // Slightly less priority
+  
+  // Add constraint to constraints message
+  joint_constraints.joint_constraints.push_back(joint2_constraint);
+  
+  // Set path constraints
+  move_group_interface.setPathConstraints(joint_constraints);
+  
+  // Set target again
+  move_group_interface.setPoseTarget(rest_pose);
+  
+  // Try planning with the constraint
+  RCLCPP_INFO(logger, "Planning with relaxed joint_2 constraint...");
+  auto const [success_rest_with_constraint, rest_plan_with_constraint] = [&move_group_interface]{
+    moveit::planning_interface::MoveGroupInterface::Plan msg;
+    auto const ok = static_cast<bool>(move_group_interface.plan(msg));
+    return std::make_pair(ok, msg);
+  }();
+
+  // Execute if successful
+  if (success_rest_with_constraint) {
+    RCLCPP_INFO(logger, "Successfully planned to rest pose with joint_2 constraint");
+    move_group_interface.execute(rest_plan_with_constraint);
+    RCLCPP_INFO(logger, "Rest pose reached with joint_2 constraint");
+  } else {
+    RCLCPP_ERROR(logger, "Failed to plan with joint_2 constraint, executing fallback plan");
+    
+    // Execute the fallback plan we created earlier
+    if (success_rest_no_constraints) {
+      move_group_interface.clearPathConstraints();
+      move_group_interface.execute(rest_plan_no_constraints);
+      RCLCPP_INFO(logger, "Rest pose reached using fallback plan");
+    } else {
+      RCLCPP_ERROR(logger, "No fallback plan available!");
+      return 1;
+    }
   }
 
   // Shutdown ROS
   rclcpp::shutdown();
   return 0;
-}*/
+}
 
 
 
@@ -178,7 +299,7 @@ int main(int argc, char * argv[])
 
 
 
-#include <memory>
+/*#include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <moveit/move_group_interface/move_group_interface.hpp>
 #include <std_msgs/msg/float32.hpp>
@@ -309,4 +430,4 @@ int main(int argc, char * argv[])
   // Arrêter ROS
   rclcpp::shutdown();
   return 0;
-}
+}*/
