@@ -97,6 +97,13 @@ def generate_launch_description():
         output="screen"
     )
 
+    auto_motion_explorer = Node(
+        package="kinova_gen3_lite_sim",
+        executable="auto_motion_explorer",
+        name="auto_motion_explorer",
+        output="screen"
+    )
+
     # LaunchDescription
     return LaunchDescription([
         DeclareLaunchArgument("use_sim_time", default_value="true", description="Use simulation time"),
@@ -130,6 +137,9 @@ def generate_launch_description():
         # Step 6: Camera bridge
         camera_bridge,
 
-        # Step 7: Optional image saver
+        # Step 7: Image saver
         image_saver,
+
+        # Step 8: Auto Motion Explorer
+        auto_motion_explorer
     ])

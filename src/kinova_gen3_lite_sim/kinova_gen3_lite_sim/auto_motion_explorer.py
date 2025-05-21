@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Header
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 import numpy as np
-import time
 
 class AutoMotionExplorer(Node):
     def __init__(self):
@@ -25,6 +23,16 @@ class AutoMotionExplorer(Node):
             "joint_4", "joint_5", "joint_6"
         ]
 
+        # Define joint limits for safe operation
+        self.joint_limits = [
+            [-2.5, 2.5],   # joint_1
+            [-2.0, 2.0],   # joint_2
+            [-2.5, 2.5],   # joint_3
+            [-2.5, 2.5],   # joint_4
+            [-2.5, 2.5],   # joint_5
+            [-2.5, 2.5]    # joint_6
+        ]
+
         self.get_logger().info("AutoMotionExplorer initialized. Starting motion.")
 
     def timer_callback(self):
@@ -35,22 +43,30 @@ class AutoMotionExplorer(Node):
 
         self.move_to_random_pose()
         self.index += 1
-        time.sleep(2)  # Wait for robot to stabilize
 
     def move_to_random_pose(self):
-        # You can replace this logic with a grid sampler or other algorithm if desired
-        point = JointTrajectoryPoint()
-        point.positions = np.random.uniform(low=-1.5, high=1.5, size=6).tolist()
-        point.time_from_start.sec = 2
-
+        # Generate random positions within joint limits
+        positions = []
+        for i, (low, high) in enumerate(self.joint_limits):
+            positions.append(np.random.uniform(low=low, high=high))
+        
+        # Create a message exactly like the working example
         traj = JointTrajectory()
         traj.joint_names = self.joint_names
+        
+        point = JointTrajectoryPoint()
+        point.positions = positions
+        point.velocities = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # Explicit zero velocities
+        point.time_from_start.sec = 3
+        point.time_from_start.nanosec = 0
+        
         traj.points = [point]
-        traj.header = Header()
-        traj.header.stamp = self.get_clock().now().to_msg()
-
+        
+        # Notice: we're not setting a header timestamp at all, just like the working example
+        
+        self.get_logger().info(f"Publishing to pose #{self.index}: {[round(p, 2) for p in point.positions]}")
         self.joint_pub.publish(traj)
-        self.get_logger().info(f"Moved to pose #{self.index}: {point.positions}")
+        self.get_logger().info(f"Published to pose #{self.index}")
 
 def main(args=None):
     rclpy.init(args=args)

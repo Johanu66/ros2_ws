@@ -5,6 +5,7 @@
 - [Debugging Camera Plugins](#ii--debugging-camera-plugin-errors-in-gazebo-harmonic-ros-2-jazzy)
 - [Camera & Bridge Integration Report](#iii--report-resolving-camera-plugin--bridge-issues-in-ros-2--ignition-gazebo)
 - [Progress Report on Image Data Capture](#iv-progress-report-simulation--image-data-capture-in-ignition-gazebo-with-ros-2)
+- [Auto Motion Explorer Integration - Troubleshooting and Solution](#v-auto-motion-explorer-integration--troubleshooting-and-solution)
 
 ---
 
@@ -491,3 +492,139 @@ Establish a robust Gazebo-based simulation for the Kinova Gen3 Lite robot with i
 * Package and document launch/config setup for reproducibility.
 
 ---
+
+
+
+<br><br><br><br><br><br>
+
+# V - Auto Motion Explorer Integration - Troubleshooting and Solution
+
+## Overview
+
+This document summarizes the troubleshooting process and solution for controlling a Kinova Gen3 Lite robot arm in a Gazebo simulation using ROS 2 Control. The main issue was that the robot would not respond to movement commands despite controllers being properly configured. We identified and fixed several issues related to the Gazebo ROS 2 Control plugin configuration.
+
+## Problem Identification
+
+The robot was not responding to movement commands because:
+
+1. The Gazebo ROS 2 Control plugin was not loading correctly
+2. Hardware interfaces were not available to controllers
+3. Plugin naming and file paths were incorrectly configured
+
+Key error messages that helped identify the problems:
+
+```
+[ERROR] The plugin failed to load for some reason. Error: According to the loaded plugin descriptions the class gz_ros2_control/GazeboSimSystem with base class type gz_ros2_control::GazeboSimSystemInterface does not exist.
+```
+
+```
+[WARN] Unable to activate controller 'gen3_lite_joint_trajectory_controller' since the command interface 'joint_1/position' is not available.
+```
+
+## Solution Steps
+
+### 1. Fixed the Gazebo Plugin Configuration in URDF
+
+Changed from:
+```xml
+<gazebo>
+  <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control">
+    <parameters>$(find kinova_gen3_lite_sim)/config/ros2_controllers.yaml</parameters>
+  </plugin>
+</gazebo>
+```
+
+To:
+```xml
+<gazebo>
+  <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+    <parameters>$(find kinova_gen3_lite_sim)/config/ros2_controllers.yaml</parameters>
+  </plugin>
+</gazebo>
+```
+
+### 2. Fixed Hardware Interface Plugin in ros2_control Section
+
+Make sure ros2_control hardware section is like this:
+```xml
+<ros2_control name="GazeboSimSystem" type="system">
+  <hardware>
+    <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    <!-- Real robot parameters -->
+  </hardware>
+</ros2_control>
+```
+
+### 3. Fixed Plugin Base Class Mismatch by Rebuilding Package
+
+The XML plugin declaration needed to be updated to match the expected base class type:
+
+```xml
+<class
+  name="gz_ros2_control/GazeboSimSystem"
+  type="gz_ros2_control::GazeboSimSystem"
+  base_class_type="gz_ros2_control::GazeboSimSystemInterface">
+  <description>
+    ros2_control hardware component to be loaded by the gazebo plugin.
+  </description>
+</class>
+```
+
+Rebuilt the package with:
+```bash
+colcon build --packages-select gz_ros2_control --allow-overriding gz_ros2_control
+```
+
+### 4. Created Python Node for Random Motion Exploration
+
+Developed a Python node that sends random joint positions to the robot through the trajectory controller:
+
+[Auto Motion Explorer](kinova_gen3_lite_sim/auto_motion_explorer.py)
+
+## Key Troubleshooting Commands Used
+
+1. Checking hardware interfaces:
+   ```bash
+   ros2 control list_hardware_interfaces
+   ```
+
+2. Checking controller status:
+   ```bash
+   ros2 control list_controllers
+   ```
+
+3. Testing manual control:
+   ```bash
+   ros2 topic pub --once /gen3_lite_joint_trajectory_controller/joint_trajectory trajectory_msgs/msg/JointTrajectory '{
+     joint_names: ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"],
+     points: [
+       {
+         positions: [0.5, -0.5, 0.5, -0.5, 0.5, -0.5],
+         velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+         time_from_start: {sec: 3, nanosec: 0}
+       }
+     ]
+   }'
+   ```
+
+## Final Results
+
+After implementing these fixes:
+
+1. The Gazebo ROS 2 Control plugin loaded correctly
+2. Hardware interfaces became available (command and state interfaces)
+3. The joint trajectory controller successfully activated
+4. The robot responded to movement commands from both direct topic publishing and the Python node
+5. The automated random motion exploration script successfully moved the robot to different poses
+
+The Kinova Gen3 Lite robot is now properly controlled in the Gazebo simulation with ROS 2 Control, and can be moved to arbitrary joint positions using the trajectory controller.
+
+## Lessons Learned
+
+1. Gazebo ROS 2 Control plugin naming and file paths must be exactly correct
+2. Plugin base class types must match between the plugin implementation and the plugin XML declaration
+3. Local workspace packages can override system packages, which can cause compatibility issues
+4. When troubleshooting, examining detailed error messages and plugin configuration files is essential
+5. Testing with simple, direct commands before moving to automated scripts helps isolate issues
+
+This solution enables further development and testing of robot control algorithms in simulation before deploying to the real robot hardware.

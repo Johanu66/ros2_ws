@@ -1,9 +1,9 @@
 controller_manager:
   ros__parameters:
     update_rate: 1000  # Hz
-    hardware:
-      - name: gen3_lite
-        type: "kinova_gen3_lite/Gen3LiteHardwareInterface"
+    
+    # Use gazebo_ros2_control hardware interface instead
+    use_sim_time: true
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
