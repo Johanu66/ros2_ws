@@ -1,4 +1,5 @@
 from setuptools import find_packages, setup
+from glob import glob
 
 package_name = 'arms_sim'
 
@@ -10,13 +11,12 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', ['launch/sim_launch.py']),
-        ('share/' + package_name + '/worlds', ['worlds/empty_world.sdf']),
-        ('share/' + package_name + '/urdf', ['urdf/gen3_lite.urdf']),
-        ('share/' + package_name + '/urdf', ['urdf/gen3_lite.urdf.xacro']),
-        ('share/' + package_name + '/urdf', ['urdf/kortex_robot.xacro']),
-        ('share/' + package_name + '/urdf', ['urdf/kinova.urdf.xacro']),
-        ('share/' + package_name + '/urdf', ['urdf/gen3_lite_gen3_lite_2f.xacro']),
-        ('share/' + package_name + '/config', ['config/ros2_controllers.yaml']),
+        # Include all files from the world directory
+        ('share/' + package_name + '/worlds', glob('worlds/*')),
+        # Include all files from the urdf directory
+        ('share/' + package_name + '/urdf', glob('urdf/*')),
+        # Include all files from the config directory
+        ('share/' + package_name + '/config', glob('config/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
