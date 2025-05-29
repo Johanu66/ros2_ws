@@ -29,6 +29,7 @@ setup(
         'console_scripts': [
             "auto_motion_explorer = arms_sim.auto_motion_explorer:main",
             "image_saver = arms_sim.image_saver:main",
+            "robot_info_extractor = arms_sim.robot_info_extractor:main",
         ],
     },
 )
