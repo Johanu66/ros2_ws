@@ -1,0 +1,6 @@
+gz-utils3:
+  ubuntu: [libgz-utils3-dev]
+gz-tools2:
+  ubuntu: [libgz-tools2-dev]
+gz-cmake4:
+  ubuntu: [libgz-cmake4-dev]

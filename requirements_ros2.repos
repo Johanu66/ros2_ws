@@ -10,7 +10,7 @@ repositories:
   gz_sensors_vendor:
     type: git
     url: https://github.com/gazebo-release/gz_sensors_vendor.git
-    version: rolling
+    version: jazzy
   moveit2:
     type: git
     url: https://github.com/moveit/moveit2
@@ -35,10 +35,6 @@ repositories:
     type: git
     url: https://github.com/moveit/moveit_visual_tools
     version: ros2
-  picknik_controllers:
-    type: git
-    url: https://github.com/sea-bass/picknik_controllers.git
-    version: fix-deprecated-realtime-tools-imports
   ros2_kortex:
     type: git
     url: https://github.com/Kinovarobotics/ros2_kortex.git
