@@ -92,22 +92,10 @@ RUN apt-get update && apt-get install -y \
     ros-jazzy-osqp-vendor \
     ros-jazzy-ament-cmake-vendor-package \
     ros-jazzy-rviz-imu-plugin \
-    ros-jazzy-rviz-imu-plugin \
     ros-jazzy-ruckig \
     xvfb \
     libgz-utils3-cli-dev \
     && rm -rf /var/lib/apt/lists/*
-
-# Workspace setup
-RUN mkdir -p /root/ros2_ws
-WORKDIR /root/ros2_ws
-# RUN git clone https://github.com/Johanu66/ros2_ws.git
-COPY src src
-
-# Clone repositories
-COPY requirements_ros2.repos .
-RUN vcs import --recursive src < requirements_ros2.repos
-
 
 # Install Python dependencies
 RUN pip3 install --no-cache-dir --break-system-packages \
@@ -116,7 +104,19 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     colcon-cmake \
     colcon-ros-bundle \
     colcon-ros \
-    rosdep
+    rosdep \
+    argcomplete
+
+# Workspace setup
+RUN mkdir -p /root/ros2_ws
+WORKDIR /root/ros2_ws
+COPY ./src /root/ros2_ws/src
+COPY ./build /root/ros2_ws/build
+COPY ./install /root/ros2_ws/install
+
+# Clone repositories
+COPY requirements_ros2.repos .
+RUN vcs import --recursive src < requirements_ros2.repos
 
 # Copier le fichier rosdep personnalisé dans le conteneur
 COPY rosdep.yaml /etc/ros/rosdep/custom.yaml
@@ -134,6 +134,9 @@ RUN . /opt/ros/jazzy/setup.sh && \
 # Build environment
 RUN . /opt/ros/jazzy/setup.sh && \
     colcon build --symlink-install
+
+RUN echo "source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash" >> /root/.bashrc && \
+    echo 'eval "$(register-python-argcomplete colcon)"' >> /root/.bashrc
 
 COPY entrypoint.sh /
 RUN chmod +x /entrypoint.sh
