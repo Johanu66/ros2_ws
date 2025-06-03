@@ -1,4 +1,183 @@
 #include <memory>
+#include <thread>
+#include <chrono>
+#include <sstream>
+
+#include <rclcpp/rclcpp.hpp>
+#include <moveit/move_group_interface/move_group_interface.hpp>
+
+// Function to execute shell command for gripper control
+int executeGripperCommand(float position, float effort = 50.0) {
+    std::stringstream cmd;
+    cmd << "ros2 action send_goal /gen3_lite_2f_gripper_controller/gripper_cmd "
+        << "control_msgs/action/GripperCommand \"{command: {position: " 
+        << position << ", max_effort: " << effort << "}}\" -f";
+        
+    return system(cmd.str().c_str());
+}
+
+// Function for moving the robot to a specific position
+bool moveTo(const rclcpp::Logger& logger, 
+           moveit::planning_interface::MoveGroupInterface& move_group_interface, 
+           const std::vector<double>& position,
+           const std::string& position_name = "target",
+           auto delay = std::chrono::seconds(1)) {
+  
+  RCLCPP_INFO(logger, "Moving to %s position...", position_name.c_str());
+  
+  move_group_interface.setJointValueTarget(position);
+  auto plan = moveit::planning_interface::MoveGroupInterface::Plan();
+  bool success = static_cast<bool>(move_group_interface.plan(plan));
+
+  // Execute the movement if planning was successful
+  if (success) {
+    RCLCPP_INFO(logger, "Moving to %s position - executing plan", position_name.c_str());
+    move_group_interface.execute(plan);
+    
+    // Add a delay to ensure the movement completes
+    rclcpp::sleep_for(delay);
+    return true;
+  } else {
+    RCLCPP_ERROR(logger, "Failed to plan movement to %s position!", position_name.c_str());
+    return false;
+  }
+}
+
+int main(int argc, char * argv[])
+{
+  // Initialize ROS and create Node
+  rclcpp::init(argc, argv);
+  auto const node = std::make_shared<rclcpp::Node>(
+    "gen3_lite_position_control",
+    rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)
+  );
+
+  // Create ROS logger
+  auto logger = rclcpp::get_logger("gen3_lite_position_control");
+
+  // Create MoveIt MoveGroup interface for the robot arm
+  using moveit::planning_interface::MoveGroupInterface;
+  auto move_group_interface = MoveGroupInterface(node, "arm");
+
+  // Set velocity and acceleration scaling factors
+  move_group_interface.setMaxVelocityScalingFactor(0.3);
+  move_group_interface.setMaxAccelerationScalingFactor(0.3);
+
+  // Define positions
+  std::vector<double> home_position = {
+    -0.003422694632969403, -0.002761165418194267, 7.190534943213943e-06,
+    0.000506799555442079, -0.000536360643542011, -0.0002918824554729582
+  };
+
+  std::vector<double> mid_target1_position = {
+    -0.13056573349887834, -0.6636405688878977, 2.103391260555483,
+    1.5943120392202963, -1.192837309097543, -1.609207631829328
+  };
+
+  std::vector<double> target1_position = {
+    -0.1510981728711709, -1.3963891027989153, 1.7972587627220027,
+    1.5726147331872027, -1.6268212466468936, -1.5995829676497815
+  };
+
+  std::vector<double> mixte_position = {
+    -0.13026905735344396, -0.6658169041307103, 2.106448569486894,
+    1.5933138864437344, -1.1872627803037892, -0.01748418518858763
+  };
+
+  std::vector<double> mixte_side1_position = {
+    -0.4048393678439597, -0.7555345401977354, 2.0540109276232337,
+    1.3008356818351992, -1.2271473460532523, 0.38945401991046263
+  };
+
+  std::vector<double> mixte_side2_position = {
+    0.18479009013787315, -0.8330458437244923, 2.041348129272125,
+    1.9192437911886462, -1.295372206858902, -0.49093137640295126
+  };
+
+  rclcpp::sleep_for(std::chrono::seconds(5));
+
+  // Step 1: Move to mid target position
+  if (!moveTo(logger, move_group_interface, mid_target1_position, "mid target", std::chrono::seconds(0))) {
+    return 1;
+  }
+
+  // Step 2: Move to target position
+  if (!moveTo(logger, move_group_interface, target1_position, "target", std::chrono::seconds(1))) {
+    return 1;
+  }
+
+  // Close the gripper
+  RCLCPP_INFO(logger, "Closing the gripper...");
+  executeGripperCommand(0.8);
+  RCLCPP_INFO(logger, "Waiting for gripper to close...");
+  rclcpp::sleep_for(std::chrono::seconds(3));
+
+  // Step 3: Move back to mid target position
+  if (!moveTo(logger, move_group_interface, mid_target1_position, "mid target", std::chrono::seconds(1))) {
+    return 1;
+  }
+
+  // Step 4: Move to mixte position
+  if (!moveTo(logger, move_group_interface, mixte_position, "mixte", std::chrono::seconds(1))) {
+    return 1;
+  }
+
+  // Increase speed for the shaking movements
+  move_group_interface.setMaxVelocityScalingFactor(0.7);
+  move_group_interface.setMaxAccelerationScalingFactor(0.7);
+
+  // Step 5: Perform shaking motion
+  for (int i = 0; i < 3; i++) {
+    if (!moveTo(logger, move_group_interface, mixte_side1_position, "side 1", std::chrono::seconds(0))) {
+      return 1;
+    }
+
+    if (!moveTo(logger, move_group_interface, mixte_side2_position, "side 2", std::chrono::seconds(0))) {
+      return 1;
+    }
+  }
+
+  // Reset to normal speed
+  move_group_interface.setMaxVelocityScalingFactor(0.3);
+  move_group_interface.setMaxAccelerationScalingFactor(0.3);
+
+  // Step 6: Return to mid target position
+  if (!moveTo(logger, move_group_interface, mid_target1_position, "mid target", std::chrono::seconds(1))) {
+    return 1;
+  }
+
+  // Step 7: Move to target position again
+  if (!moveTo(logger, move_group_interface, target1_position, "target", std::chrono::seconds(1))) {
+    return 1;
+  }
+
+  // Open the gripper
+  RCLCPP_INFO(logger, "Opening the gripper...");
+  executeGripperCommand(0.0);
+  RCLCPP_INFO(logger, "Waiting for gripper to open...");
+  rclcpp::sleep_for(std::chrono::seconds(3));
+
+  // Step 8: Move back to mid target position
+  if (!moveTo(logger, move_group_interface, mid_target1_position, "mid target", std::chrono::seconds(0))) {
+    return 1;
+  }
+
+  // Step 9: Return to home position
+  if (!moveTo(logger, move_group_interface, home_position, "home", std::chrono::seconds(2))) {
+    return 1;
+  }
+
+  RCLCPP_INFO(logger, "Motion sequence completed successfully");
+
+  // Shutdown ROS
+  rclcpp::shutdown();
+  return 0;
+}
+
+
+
+
+/*#include <memory>
 #include <cmath> // for M_PI
 
 #include <rclcpp/rclcpp.hpp>
@@ -171,7 +350,7 @@ int main(int argc, char * argv[])
   return 0;
 }
 
-
+*/
 
 
 
