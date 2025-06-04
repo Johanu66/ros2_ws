@@ -96,6 +96,9 @@ Latest updates on simulation development and data collection methods.
 # Build the container docker
 docker build -t ros2-ws .
 
+# Allow Docker to access your display (just once)
+xhost +local:root && xhost +local:docker
+
 # Start the container
 docker compose up -d
 
