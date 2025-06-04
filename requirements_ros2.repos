@@ -15,10 +15,6 @@ repositories:
     type: git
     url: https://github.com/moveit/moveit2
     version: main
-  moveit2_tutorials:
-    type: git
-    url: https://github.com/moveit/moveit2_tutorials
-    version: main
   moveit_msgs:
     type: git
     url: https://github.com/moveit/moveit_msgs
@@ -35,10 +31,6 @@ repositories:
     type: git
     url: https://github.com/moveit/moveit_visual_tools
     version: ros2
-  ros2_kortex:
-    type: git
-    url: https://github.com/Kinovarobotics/ros2_kortex.git
-    version: main
   ros2_robotiq_gripper:
     type: git
     url: https://github.com/PickNikRobotics/ros2_robotiq_gripper.git
