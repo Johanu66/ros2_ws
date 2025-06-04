@@ -20,7 +20,32 @@ Ensure you have ROS 2 Jazzy installed on Ubuntu 24.04. The project uses the foll
 - Kinova Gen3 Lite libraries
 - Robotiq Gripper support
 
-### Installation
+Sure! Here's a rewritten version of your installation section, clearly presenting the two options:
+
+
+
+### 🚀 Installation Options
+
+You can use this tool in **two different ways**:
+
+
+
+#### 🔹 Option 1: Using Docker (Recommended)
+
+Run the tool in a pre-configured container with NVIDIA support.
+
+```bash
+# Set up the Docker environment
+./install_docker_nvidia.sh
+```
+
+This script will prepare everything needed to run the containerized version of the tool.
+
+
+
+#### 🔹 Option 2: Native Installation on Ubuntu 24.04
+
+If you prefer to run the tool directly on your system:
 
 ```bash
 # Clone the repository and install dependencies
@@ -32,7 +57,8 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-See [detailed installation instructions](INSTALL.md) for complete setup.
+Refer to the [INSTALL.md](INSTALL.md) file for full native setup instructions.
+
 
 ## 📖 Documentation
 
@@ -67,14 +93,32 @@ Latest updates on simulation development and data collection methods.
 ## 🤖 Usage Examples
 
 ```bash
-# Launch MoveIt with the robot
+# Build the container docker
+docker build -t ros2-ws .
+
+# Start the container
+docker compose up -d
+
+# Stop the container
+docker compose down
+
+# Check started containers
+docker ps
+
+# New terminal in the container
+docker exec -it ros2_dev bash -c "source /entrypoint.sh && exec bash"
+
+# Launch MoveIt with a robot for test
 ros2 launch kinova_gen3_lite_moveit_config demo.launch.py
 
-# Run a basic motion example
-ros2 run hello_moveit gen3_lite_hello_moveit
+# Launch MoveIt with gen3 lite arm for manipulation
+colcon build --packages-select moveit2_tutorials kinova_gen3_lite_moveit_config && ros2 launch moveit2_tutorials gen3lite_demo.launch.py
 
-# Launch the simulated robot in Gazebo
-ros2 launch kinova_gen3_lite_sim robot_simulation.launch.py
+# Run a basic motion example
+colcon build --packages-select hello_moveit && ros2 run hello_moveit gen3_lite_hello_moveit
+
+# Launch the simulated gen3 lite robot in Gazebo
+colcon build --packages-select kinova_gen3_lite_sim && ros2 launch kinova_gen3_lite_sim sim_launch.py
 ```
 
 ## 🧰 Tools & Utilities

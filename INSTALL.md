@@ -49,7 +49,7 @@ git clone https://github.com/moveit/moveit_msgs -b ros2 src/moveit_msgs
 git clone https://github.com/moveit/moveit_resources -b ros2 src/moveit_resources
 git clone https://github.com/moveit/moveit_visual_tools -b ros2 src/moveit_visual_tools
 git clone https://github.com/moveit/moveit_task_constructor.git -b ros2 src/moveit_task_constructor
-git clone https://github.com/moveit/moveit2_tutorials -b main src/moveit2_tutorials
+# git clone https://github.com/moveit/moveit2_tutorials -b main src/moveit2_tutorials
 
 # Install dependencies
 sudo apt install ros-jazzy-ompl libomp-dev libbackward-cpp-dev
@@ -58,7 +58,7 @@ sudo apt install ros-jazzy-ompl libomp-dev libbackward-cpp-dev
 ### Kinova Gen3 Lite and Robotiq Gripper
 ```bash
 # Clone repositories
-git clone https://github.com/Kinovarobotics/ros2_kortex.git -b main src/ros2_kortex
+# git clone https://github.com/Kinovarobotics/ros2_kortex.git -b main src/ros2_kortex
 git clone https://github.com/PickNikRobotics/ros2_robotiq_gripper.git -b main src/ros2_robotiq_gripper
 
 # Clone supporting repositories
