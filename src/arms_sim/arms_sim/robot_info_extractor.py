@@ -95,35 +95,33 @@ def extract_robot_info(xacro_path):
 class RobotInfoExtractor(Node):
     def __init__(self):
         super().__init__('extractor')
-        
-        # Track attempted package installations
-        self.attempted_packages = set()
+
+        logger = self.get_logger()
         
         urdf_dir = '/root/ros2_ws/src/arms_sim/urdf/'
         # Cherche tous les fichiers xacro et urdf dans le dossier
         files = glob(os.path.join(urdf_dir, '*.xacro')) + glob(os.path.join(urdf_dir, '*.urdf'))
 
         for file_path in files:
-            self.get_logger().info(f"Extraction pour le fichier: {file_path}")
+            logger.info(f"Extraction pour le fichier: {file_path}")
             try:
-                info = self.extract_robot_info_with_auto_install(file_path)
-                self.get_logger().info(f"Successfully extracted info from {file_path}")
-                self.get_logger().info(str(info))
+                info = self.extract_robot_info_with_auto_install(xacro_path=file_path, logger=logger)
+                logger.info(f"Successfully extracted info from {file_path}")
+                logger.info(str(info))
             except Exception as e:
-                self.get_logger().error(f"Erreur avec le fichier {file_path}: {str(e)}")
+                logger.error(f"Erreur avec le fichier {file_path}: {str(e)}")
     
-    def extract_robot_info_with_auto_install(self, xacro_path, auto_install=True):
+    def extract_robot_info_with_auto_install(xacro_path, logger, auto_install=True):
         """Extract robot info with automatic package installation."""
         try:
             # Try normal extraction first
             urdf_xml = subprocess.check_output(['xacro', xacro_path], stderr=subprocess.PIPE).decode("utf-8")
-            if urdf_xml:
-                return extract_robot_info(xacro_path)
+            if urdf_xml: return extract_robot_info(xacro_path)
         except subprocess.CalledProcessError as e:
             error_output = e.stderr.decode('utf-8') if e.stderr else str(e)
             
             if auto_install and "package" in error_output and "not found" in error_output:
-                self.get_logger().warning(f"Package error: {error_output}")
+                logger.warning(f"Package error: {error_output}")
                 
                 # Extract package name from error message
                 match = re.search(r"package '([^']+)' not found", error_output)
@@ -131,36 +129,30 @@ class RobotInfoExtractor(Node):
                 if match:
                     package_name = match.group(1)
                     
-                    # Skip if we already tried to install this package
-                    if package_name in self.attempted_packages:
-                        self.get_logger().warn(f"Already attempted to install {package_name}, skipping")
-                        raise
-                    
-                    self.attempted_packages.add(package_name)
-                    self.get_logger().info(f"Attempting to install missing package: {package_name}")
+                    logger.info(f"Attempting to install missing package: {package_name}")
                     
                     # If apt and rosdep fail, try cloning from GitHub
-                    if clone_and_build_package(package_name, logger=self.get_logger()):
-                        self.get_logger().info(f"Successfully built {package_name} from source")
+                    if clone_and_build_package(package_name, logger=logger):
+                        logger.info(f"Successfully built {package_name} from source")
                         # Try again with the package installed
                         return extract_robot_info(xacro_path)
                     
                     # Try installing with apt first
-                    if install_ros_apt_package(package_name, logger=self.get_logger()):
-                        self.get_logger().info(f"Successfully installed {package_name} from ros apt")
+                    if install_ros_apt_package(package_name, logger=logger):
+                        logger.info(f"Successfully installed {package_name} from ros apt")
                         # Try again with the package installed
                         return extract_robot_info(xacro_path)
                     
                     # Then try with rosdep
-                    if install_rosdep_package(package_name, logger=self.get_logger()):
-                        self.get_logger().info(f"Successfully installed {package_name} from rosdep")
+                    if install_rosdep_package(package_name, logger=logger):
+                        logger.info(f"Successfully installed {package_name} from rosdep")
                         # Try again with the package installed
                         return extract_robot_info(xacro_path)
                     
-                    self.get_logger().error(f"Failed to install {package_name} using any method")
+                    logger.error(f"Failed to install {package_name} using any method")
             
             # If auto-install failed or was not attempted, re-raise with better logging
-            self.get_logger().error(f"Failed to process {xacro_path}: {error_output}")
+            logger.error(f"Failed to process {xacro_path}: {error_output}")
             raise
 
 def main(args=None):
