@@ -6,36 +6,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-
-
-def extract_robot_name_from_urdf(urdf_path):
-    """Extract robot name from URDF file."""
-    import xml.etree.ElementTree as ET
-    import re
-    
-    try:
-        # For .urdf files
-        if urdf_path.endswith('.urdf'):
-            tree = ET.parse(urdf_path)
-            root = tree.getroot()
-            return root.get('name', 'robot')
-        # For .xacro files, use regex to find robot name definition
-        elif urdf_path.endswith('.xacro'):
-            with open(urdf_path, 'r') as file:
-                content = file.read()
-                # Look for robot name in common xacro patterns
-                match = re.search(r'name="([^"]+)"', content)
-                if match:
-                    return match.group(1)
-                # Alternative: look for robot_name parameter
-                match = re.search(r'robot_name\s*=\s*[\'"](.*?)[\'"]', content)
-                if match:
-                    return match.group(1)
-        return 'robot'  # Default fallback
-    except Exception as e:
-        print(f"Error extracting robot name: {e}")
-        return 'robot'
-
+from arms_sim.robot_info_extractor import RobotInfoExtractor
 
 def extract_controller_names(controllers_file_path):
     """
@@ -146,9 +117,13 @@ def launch_setup(context, *args, **kwargs):
     # Calculate full paths
     urdf_path = os.path.join(pkg_kinova_sim, "urdf", urdf_file)
     controllers_path = os.path.join(pkg_kinova_sim, "config", controllers_file)
+
+    from launch.logging import get_logger
+    logger = get_logger("arms_sim")
+    robot_info = RobotInfoExtractor.extract_robot_info_with_auto_install(xacro_path=urdf_path,logger=logger)
     
     # Extract robot name
-    robot_name = extract_robot_name_from_urdf(urdf_path)
+    robot_name = robot_info["robot_name"]
     print(f"Using robot name: {robot_name}")
     
     # Extract controller list
