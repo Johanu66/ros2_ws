@@ -1,109 +1,49 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess, RegisterEventHandler, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler, OpaqueFunction
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from arms_sim.robot_info_extractor import RobotInfoExtractor
+import yaml
 
-def extract_controller_names(controllers_file_path):
+
+def extract_controller_names(yaml_path):
     """
-    Extract controller names from ROS2 controller configuration file.
-    
-    Handles the typical structure where controllers are defined under
-    controller_manager/ros__parameters and have their own configuration
-    sections at the top level.
+    Extract controller names from a ROS 2 controller configuration YAML file.
     """
-    import yaml # type: ignore
-    
     try:
-        with open(controllers_file_path, 'r') as file:
-            config = yaml.safe_load(file)
-        
-        if not config:
-            print(f"Warning: Empty config file: {controllers_file_path}")
-            return default_controllers()
+        with open(yaml_path, 'r') as f:
+            config = yaml.safe_load(f)
             
         controller_names = []
         
-        # Check for the standard controller_manager structure
+        # Check for controller_manager configuration
         if 'controller_manager' in config and 'ros__parameters' in config['controller_manager']:
-            # Extract all keys that are not 'update_rate' or other parameters
             controller_params = config['controller_manager']['ros__parameters']
             
             for key, value in controller_params.items():
-                # Skip non-controller parameters like update_rate
                 if isinstance(value, dict) and 'type' in value:
                     controller_names.append(key)
-                    print(f"Found controller: {key} of type {value['type']}")
-        
-        # If no controllers found, try looking for top-level controller configurations
+                    
+        # If nothing found, look for top-level controller configurations
         if not controller_names:
             for key in config:
-                # Skip the controller_manager itself
-                if key == 'controller_manager':
-                    continue
-                    
-                # If it's a section with ros__parameters, it's likely a controller
-                if isinstance(config[key], dict) and 'ros__parameters' in config[key]:
-                    controller_names.append(key)
-                    print(f"Found controller from top-level config: {key}")
-        
-        # If still no controllers found, return defaults
-        if not controller_names:
-            print(f"Warning: No controllers found in {controllers_file_path}")
-            return default_controllers()
+                if key != 'controller_manager' and isinstance(config[key], dict):
+                    if 'ros__parameters' in config[key]:
+                        controller_names.append(key)
             
-        # Prioritize controllers:
-        # 1. joint_state_broadcaster always first
-        # 2. trajectory controllers
-        # 3. gripper controllers
-        # 4. others
-        
-        # First ensure joint_state_broadcaster is first
-        if 'joint_state_broadcaster' in controller_names:
-            controller_names.remove('joint_state_broadcaster')
-            final_controllers = ['joint_state_broadcaster']
-        else:
-            # Add it if it doesn't exist
-            final_controllers = ['joint_state_broadcaster']
-            print("Added missing joint_state_broadcaster")
-            
-        # Then prioritize trajectory controllers
-        trajectory_controllers = [c for c in controller_names 
-                                 if any(term in c.lower() for term in 
-                                       ['trajectory', 'position', 'velocity', 'effort', 'joint'])]
-        final_controllers.extend(trajectory_controllers)
-        
-        # Then gripper controllers
-        gripper_controllers = [c for c in controller_names 
-                              if 'gripper' in c.lower() and c not in final_controllers]
-        final_controllers.extend(gripper_controllers)
-        
-        # Then any remaining controllers
-        remaining_controllers = [c for c in controller_names 
-                               if c not in final_controllers]
-        final_controllers.extend(remaining_controllers)
-        
-        print(f"Final ordered controller list: {final_controllers}")
-        return final_controllers
-        
+        return controller_names
     except Exception as e:
-        print(f"Error extracting controller names: {e}")
-        return default_controllers()
-
-
-def default_controllers():
-    """Return default controller list if extraction fails."""
-    return ["joint_state_broadcaster"]
+        print(f"Error reading controllers from {yaml_path}: {e}")
+        return ["joint_state_broadcaster"]
 
 
 def launch_setup(context, *args, **kwargs):
     # Get launch configurations
     use_sim_time_str = LaunchConfiguration("use_sim_time").perform(context)
-    # Convert string to boolean
     use_sim_time = use_sim_time_str.lower() == "true"
     
     world = LaunchConfiguration("world").perform(context)
@@ -120,16 +60,16 @@ def launch_setup(context, *args, **kwargs):
 
     from launch.logging import get_logger
     logger = get_logger("arms_sim")
-    robot_info = RobotInfoExtractor.extract_robot_info_with_auto_install(xacro_path=urdf_path,logger=logger)
+    robot_info = RobotInfoExtractor.extract_robot_info_with_auto_install(xacro_path=urdf_path, logger=logger)
     
     # Extract robot name
     robot_name = robot_info["robot_name"]
     print(f"Using robot name: {robot_name}")
     
-    # Extract controller list
-    controller_list = extract_controller_names(controllers_path)
-    print(f"Using controllers: {controller_list}")
-
+    # Get controller names from YAML
+    controller_names = extract_controller_names(controllers_path)
+    print(f"Found controllers: {controller_names}")
+    
     # Robot description (Xacro → URDF)
     xacro_file = os.path.join(pkg_kinova_sim, "urdf", urdf_file)
     robot_description_content = Command(["xacro ", xacro_file, " sim_gazebo:=true"])
@@ -150,7 +90,7 @@ def launch_setup(context, *args, **kwargs):
         package="robot_state_publisher",
         executable="robot_state_publisher",
         output="screen",
-        parameters=[robot_description, {"use_sim_time": use_sim_time}],  # Boolean value
+        parameters=[robot_description, {"use_sim_time": use_sim_time}],
     )
 
     # Spawn the robot in Gazebo
@@ -162,17 +102,30 @@ def launch_setup(context, *args, **kwargs):
         arguments=["-name", robot_name, "-string", robot_description_content],
     )
 
-    # Spawn controller processes based on extracted controller list
-    spawn_controller_processes = []
-    for controller in controller_list:
-        spawn_controller_processes.append(
-            ExecuteProcess(
-                cmd=["ros2", "run", "controller_manager", "spawner", controller],
-                output="screen",
-            )
-        )
+    # Controller Manager with loaded configuration
+    controller_manager = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        parameters=[
+            controllers_path,  # Load directly from the YAML file
+            {"use_sim_time": use_sim_time}
+        ],
+        output="screen",
+    )
 
-    # Bridge for camera
+    # Contrôleurs avec les deux approches combinées
+    controller_launcher = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[
+            "--controller-manager", "/controller_manager",
+            "--param-file", controllers_path,
+            *controller_names  # Utilise la liste extraite des contrôleurs
+        ],
+        output="screen"
+    )
+
+    # Rest of your nodes
     camera_bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
@@ -183,7 +136,6 @@ def launch_setup(context, *args, **kwargs):
         ]
     )
 
-    # Optional image_saver node
     image_saver = Node(
         package="arms_sim",
         executable="image_saver",
@@ -200,25 +152,26 @@ def launch_setup(context, *args, **kwargs):
 
     return [
         gz_sim,
-
-        # Step 2: Robot State Publisher
         robot_state_pub,
-
-        # Step 3: Spawn robot into Gazebo
         spawn_robot,
         
-        # RegisterEventHandler to spawn controllers after robot is spawned
+        # Start controller manager after robot is spawned
         RegisterEventHandler(
             OnProcessExit(
                 target_action=spawn_robot,
-                on_exit=spawn_controller_processes,
+                on_exit=[controller_manager]
             )
         ),
-
-        # Step 6: Camera bridge
+        
+        # Start all controllers after controller manager is up
+        RegisterEventHandler(
+            OnProcessExit(
+                target_action=spawn_robot,
+                on_exit=[controller_launcher]
+            )
+        ),
+        
         camera_bridge,
-
-        # Step 7: Image saver
         image_saver,
         auto_motion_explorer
     ]
