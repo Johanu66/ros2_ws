@@ -122,6 +122,9 @@ colcon build --packages-select hello_moveit && ros2 run hello_moveit gen3_lite_h
 
 # Launch the simulated gen3 lite robot in Gazebo
 colcon build --packages-select kinova_gen3_lite_sim && ros2 launch kinova_gen3_lite_sim sim_launch.py
+
+
+colcon build --packages-select arms_sim && ros2 run arms_sim robot_info_extractor
 ```
 
 ## 🧰 Tools & Utilities
