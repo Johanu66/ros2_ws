@@ -115,8 +115,8 @@ RUN pip3 install --no-cache-dir --break-system-packages \
 RUN mkdir -p /root/ros2_ws
 WORKDIR /root/ros2_ws
 COPY ./src /root/ros2_ws/src
-COPY ./build /root/ros2_ws/build
-COPY ./install /root/ros2_ws/install
+COPY ./docker_save/build /root/ros2_ws/build
+COPY ./docker_save/install /root/ros2_ws/install
 
 # Clone repositories
 COPY requirements_ros2.repos .

@@ -6,7 +6,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-from arms_sim.robot_info_extractor import RobotInfoExtractor
+from arms_sim.robot_info_extractor import extract_robot_info_with_auto_install
 import yaml
 
 
@@ -60,7 +60,7 @@ def launch_setup(context, *args, **kwargs):
 
     from launch.logging import get_logger
     logger = get_logger("arms_sim")
-    robot_info = RobotInfoExtractor.extract_robot_info_with_auto_install(xacro_path=urdf_path, logger=logger)
+    robot_info = extract_robot_info_with_auto_install(xacro_path=urdf_path, logger=logger)
     
     # Extract robot name
     robot_name = robot_info["robot_name"]
@@ -147,7 +147,11 @@ def launch_setup(context, *args, **kwargs):
         package="arms_sim",
         executable="auto_motion_explorer",
         name="auto_motion_explorer",
-        output="screen"
+        output="screen",
+        parameters=[
+            {"urdf_path": urdf_path},
+            {"use_sim_time": use_sim_time}
+        ]
     )
 
     return [

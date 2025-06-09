@@ -6,24 +6,91 @@ import base64
 import shutil
 from glob import glob
 import xml.etree.ElementTree as ET
+import shlex
+import tempfile
+
+from ament_index_python.packages import get_package_prefix
+workspace_root = os.path.dirname(os.path.dirname(get_package_prefix('arms_sim')))
+
 
 def install_rosdep_package(package_name, logger=None):
-    """Install a missing ROS package using rosdep."""
+    """
+    Install a missing ROS package using rosdep.
+    First checks if the package exists in rosdep, then attempts to install it.
+    
+    Args:
+        package_name (str): Name of the ROS package to install
+        logger: Optional logger object
+        
+    Returns:
+        bool: True if installation was successful, False otherwise
+    """
+    # First check if the package exists in rosdep
     try:
         if logger:
-            logger.info(f"Trying to install {package_name} using rosdep...")
+            logger.info(f"Checking if {package_name} exists in rosdep...")
         
-        # First try to resolve and install the package
-        result = subprocess.check_call(['rosdep', 'install', '--from-paths', '.', 
-                              '--ignore-src', '-r', '-y', package_name],
-                              stderr=subprocess.PIPE)
+        # Use rosdep resolve to check if the package is known to rosdep
+        resolve_process = subprocess.run(['rosdep', 'resolve', package_name], 
+                                        capture_output=True, text=True)
+        
+        if resolve_process.returncode != 0:
+            if logger:
+                logger.error(f"Package {package_name} not found in rosdep: {resolve_process.stderr}")
+            return False
+            
+        # Package exists, now extract the resolved package name
+        resolved_lines = resolve_process.stdout.strip().split('\n')
+        if len(resolved_lines) < 2:
+            if logger:
+                logger.error(f"Unexpected output from rosdep resolve: {resolve_process.stdout}")
+            return False
+            
+        # The resolved package name is in the second line
+        resolved_package = resolved_lines[1].strip()
         
         if logger:
-            logger.info(f"Successfully installed {package_name} using rosdep")
+            logger.info(f"Package {package_name} resolved to {resolved_package}")
+        
+        # Now install the package
+        if logger:
+            logger.info(f"Installing {package_name} ({resolved_package})...")
+        
+        # Create a temporary package.xml file to use with rosdep install
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pkg_dir = os.path.join(temp_dir, "temp_pkg")
+            os.makedirs(pkg_dir)
+            
+            with open(os.path.join(pkg_dir, "package.xml"), "w") as f:
+                f.write(f'''<?xml version="1.0"?>
+                <package format="2">
+                <name>temp_pkg</name>
+                <version>0.0.0</version>
+                <description>Temporary package for rosdep installation</description>
+                <maintainer email="temp@example.com">temp</maintainer>
+                <license>MIT</license>
+                <depend>{package_name}</depend>
+                </package>
+                ''')
+            
+            # Run rosdep install
+            install_process = subprocess.run(
+                ['rosdep', 'install', '--from-paths', pkg_dir, '--ignore-src', '-y'],
+                capture_output=True, text=True
+            )
+            
+            if install_process.returncode != 0:
+                if logger:
+                    logger.error(f"Failed to install {package_name}: {install_process.stderr}")
+                return False
+        
+        if logger:
+            logger.info(f"Successfully installed {package_name}")
         return True
-    except subprocess.CalledProcessError as e:
+        
+    except Exception as e:
         if logger:
-            logger.error(f"Failed to install {package_name} using rosdep: {e.stderr.decode('utf-8') if e.stderr else str(e)}")
+            logger.error(f"Error during installation of {package_name}: {str(e)}")
         return False
 
 def clone_and_build_package(package_name, ros_distro="jazzy", logger=None):
@@ -33,7 +100,7 @@ def clone_and_build_package(package_name, ros_distro="jazzy", logger=None):
             logger.info(f"Trying to clone and build {package_name} from GitHub...")
             
         # Create a directory for source packages if needed
-        src_dir = os.path.expanduser("/root/ros2_ws/src")
+        src_dir = os.path.expanduser(f"{workspace_root}/src")
         os.makedirs(src_dir, exist_ok=True)
         os.chdir(src_dir)
         
@@ -144,7 +211,7 @@ def clone_specific_repo(repo_url, package_name, logger=None):
     """Clone a specific repo for a ROS package."""
     try:
         # Get source directory
-        src_dir = os.path.expanduser("/root/ros2_ws/src")
+        src_dir = os.path.expanduser(f"{workspace_root}/src")
         
         # Choose appropriate directory name for cloning
         target_dir = os.path.join(src_dir, package_name)
@@ -167,7 +234,7 @@ def clone_specific_repo(repo_url, package_name, logger=None):
             logger.error(f"Error cloning repo for {package_name}: {str(e)}")
         return False
 
-def build_package(package_name, logger=None, ros_distro="jazzy", attempts=2):
+def build_package(package_name, logger=None, ros_distro="jazzy", attempts=5):
     """
     Build a ROS package with improved error handling and automatic fixes.
     """
@@ -177,7 +244,7 @@ def build_package(package_name, logger=None, ros_distro="jazzy", attempts=2):
         
         try:
             # Change to workspace directory
-            workspace_dir = os.path.expanduser("~/ros2_ws")
+            workspace_dir = os.path.expanduser(workspace_root)
             os.chdir(workspace_dir)
             
             if logger:
@@ -185,7 +252,9 @@ def build_package(package_name, logger=None, ros_distro="jazzy", attempts=2):
             
             # Try to resolve dependencies
             try:
-                install_rosdep_package(package_name, logger=logger)
+                result = subprocess.check_call(['rosdep', 'install', '--from-paths', f'src/{package_name}', 
+                          '--ignore-src', '-r', '-y'],
+                          stderr=subprocess.PIPE)
             except Exception as e:
                 if logger:
                     logger.warn(f"Failed to resolve dependencies with rosdep: {e}")
@@ -238,16 +307,30 @@ def build_package(package_name, logger=None, ros_distro="jazzy", attempts=2):
                                install_rosdep_package(missing_pkg, logger=logger):
                                 continue  # Try building again
                     
-                    elif "No such file or directory" in stderr:
+                    elif "No such file or directory" in stderr or "cannot find" in stderr:
                         # Extract missing directories or files from error messages
                         import re
-                        
-                        # Look for patterns like "cannot find "/path/to/something": No such file or directory"
-                        missing_paths = re.findall(r'cannot find "([^"]+)": No such file or directory', stderr)
-                        
-                        # Also look for other common error patterns
-                        if not missing_paths:
-                            missing_paths = re.findall(r'No such file or directory:?\s+([^\s\n]+)', stderr)
+
+                        # More robust regex for paths
+                        # This handles:
+                        # - Unix-style paths (/path/to/file)
+                        # - Paths with spaces, dots, underscores, hyphens, etc.
+                        # - Paths in quotes (both single and double)
+                        # - Windows-style paths (C:\path\to\file)
+                        path_pattern = r'(?:"([^"]+)"|\'([^\']+)\'|(?:\/|[A-Za-z]:\\)(?:[^\s:*?"<>|(){}[\]]+\/)*[^\s:*?"<>|(){}[\]]+)'
+
+                        missing_paths = []
+                        # Find all matches
+                        matches = re.finditer(path_pattern, stderr)
+                        for match in matches:
+                            # If the path is in quotes, get the quoted part
+                            if match.group(1):
+                                missing_paths.append(match.group(1))
+                            elif match.group(2):
+                                missing_paths.append(match.group(2))
+                            else:
+                                missing_paths.append(match.group(0))
+                        print(missing_paths)
                         
                         for missing_path in missing_paths:
                             # Check if this is a directory path
@@ -395,21 +478,21 @@ def convert_ros1_to_ros2(package_path, package_name, logger=None):
 def create_minimal_description_cmakelists(cmake_path, package_name):
     """Create a minimal CMakeLists.txt for a description package."""
     minimal_cmake = f"""cmake_minimum_required(VERSION 3.8)
-project({package_name})
+    project({package_name})
 
-find_package(ament_cmake REQUIRED)
+    find_package(ament_cmake REQUIRED)
 
-# Install directories with meshes and URDF files
-foreach(dir meshes urdf launch config)
-  if(EXISTS "${{CMAKE_CURRENT_SOURCE_DIR}}/${{dir}}")
-    install(DIRECTORY ${{dir}}
-      DESTINATION share/${{PROJECT_NAME}}
-    )
-  endif()
-endforeach()
+    # Install directories with meshes and URDF files
+    foreach(dir meshes urdf launch config)
+    if(EXISTS "${{CMAKE_CURRENT_SOURCE_DIR}}/${{dir}}")
+        install(DIRECTORY ${{dir}}
+        DESTINATION share/${{PROJECT_NAME}}
+        )
+    endif()
+    endforeach()
 
-ament_package()
-"""
+    ament_package()
+    """
     with open(cmake_path, 'w') as f:
         f.write(minimal_cmake)
     return True
@@ -444,21 +527,21 @@ def create_minimal_description_package_xml(package_xml_path, package_name):
             pass
     
     minimal_package_xml = f"""<?xml version="1.0"?>
-<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
-<package format="3">
-  <name>{package_name}</name>
-  <version>{version}</version>
-  <description>{description}</description>
-  <maintainer email="{maintainer}">{maintainer.split('@')[0]}</maintainer>
-  <license>{license_tag}</license>
+    <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+    <package format="3">
+    <name>{package_name}</name>
+    <version>{version}</version>
+    <description>{description}</description>
+    <maintainer email="{maintainer}">{maintainer.split('@')[0]}</maintainer>
+    <license>{license_tag}</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
+    <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <export>
-    <build_type>ament_cmake</build_type>
-  </export>
-</package>
-"""
+    <export>
+        <build_type>ament_cmake</build_type>
+    </export>
+    </package>
+    """
     with open(package_xml_path, 'w') as f:
         f.write(minimal_package_xml)
     return True

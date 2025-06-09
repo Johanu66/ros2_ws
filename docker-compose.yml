@@ -8,8 +8,8 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw  # Accès au serveur X11
       - ./src:/root/ros2_ws/src:ro           # Montage dynamique du code source
-      - ./build:/root/ros2_ws/build       # Build local
-      - ./install:/root/ros2_ws/install   # Installation localisée
+      - ./docker_save/build:/root/ros2_ws/build       # Build local
+      - ./docker_save/install:/root/ros2_ws/install   # Installation localisée
     network_mode: host                    # Accès réseau direct (utile pour ROS)
     privileged: true                      # Nécessaire pour certains périphériques
     stdin_open: true                      # Mode interactif
