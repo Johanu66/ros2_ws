@@ -51,3 +51,7 @@ repositories:
     type: git
     url: https://github.com/ros-perception/vision_opencv.git
     version: rolling
+  create3_sim:
+    type: git
+    url: https://github.com/iRobotEducation/create3_sim.git
+    version: jazzy

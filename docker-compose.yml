@@ -7,7 +7,7 @@ services:
       - QT_X11_NO_MITSHM=1
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw  # Accès au serveur X11
-      - ./src:/root/ros2_ws/src:ro           # Montage dynamique du code source
+      - ./src/arms_sim:/root/ros2_ws/src/arms_sim:ro           # Montage dynamique du code source
       - ./docker_save/build:/root/ros2_ws/build       # Build local
       - ./docker_save/install:/root/ros2_ws/install   # Installation localisée
     network_mode: host                    # Accès réseau direct (utile pour ROS)

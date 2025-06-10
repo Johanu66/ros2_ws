@@ -99,7 +99,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install -y \
-    ros-jazzy-slam-toolbox
+    ros-jazzy-slam-toolbox \
+    libgz-math8-dev \
+    libgz-common6-dev \
+    libgz-transport14-dev \
+    libgz-rendering9-dev \
+    libgz-msgs11-dev \
+    libsdformat15-dev
 
 # Install Python dependencies
 RUN pip3 install --no-cache-dir --break-system-packages \
@@ -137,7 +143,7 @@ RUN . /opt/ros/jazzy/setup.sh && \
 
 # Build environment
 RUN . /opt/ros/jazzy/setup.sh && \
-    colcon build --symlink-install
+    colcon build
 
 RUN echo "source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash" >> /root/.bashrc && \
     echo 'eval "$(register-python-argcomplete colcon)"' >> /root/.bashrc
