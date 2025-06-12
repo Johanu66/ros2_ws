@@ -142,8 +142,8 @@ RUN . /opt/ros/jazzy/setup.sh && \
     rosdep install -y --from-paths src --ignore-src --rosdistro jazzy
 
 # Build environment
-RUN . /opt/ros/jazzy/setup.sh && \
-    colcon build
+# RUN . /opt/ros/jazzy/setup.sh && \
+#     colcon build
 
 RUN echo "source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash" >> /root/.bashrc && \
     echo 'eval "$(register-python-argcomplete colcon)"' >> /root/.bashrc

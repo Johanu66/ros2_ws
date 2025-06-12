@@ -55,3 +55,7 @@ repositories:
     type: git
     url: https://github.com/iRobotEducation/create3_sim.git
     version: jazzy
+  open_manipulator:
+    type: git
+    url: https://github.com/ROBOTIS-GIT/open_manipulator.git
+    version: jazzy
