@@ -8,6 +8,7 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from arms_sim.robot_info_extractor import extract_robot_info_with_auto_install
 import yaml
+from arms_sim.tools import add_description_packages_to_gz_path
 
 
 def extract_controller_names(yaml_path):
@@ -42,6 +43,8 @@ def extract_controller_names(yaml_path):
 
 
 def launch_setup(context, *args, **kwargs):
+    add_description_packages_to_gz_path()
+
     # Get launch configurations
     use_sim_time_str = LaunchConfiguration("use_sim_time").perform(context)
     use_sim_time = use_sim_time_str.lower() == "true"
