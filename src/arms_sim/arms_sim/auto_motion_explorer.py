@@ -27,7 +27,30 @@ class AutoMotionExplorer(Node):
         self.index = 0
         self.max_index = 100  # Number of poses to explore
 
-        self.joint_names = robot_info["joint_names"]
+        self.mobile_joints = [j for j in robot_info["joints"] if j["type"] in ["revolute", "continuous", "prismatic", "floating", "planar"]]
+
+        self.joint_names = [j["name"] for j in self.mobile_joints]
+
+        # Define joint limits for safe operation
+        self.joint_limits = [[j["limit"]["lower"], j["limit"]["upper"]] for j in self.mobile_joints]
+
+        logger.warning(self.joint_names)
+        logger.warning(self.joint_limits)
+
+        # Define joint limits for safe operation
+        # self.joint_limits = [
+        #     [-2.5, 2.5],   # joint_1
+        #     [-2.0, 2.0],   # joint_2
+        #     [-2.5, 2.5],   # joint_3
+        #     [-2.5, 2.5],   # joint_4
+        #     [-2.5, 2.5],   # joint_5
+        #     [-2.5, 2.5]    # joint_6
+        # ]
+
+        self.joint_names = [
+            "joint_1", "joint_2", "joint_3",
+            "joint_4", "joint_5", "joint_6"
+        ]
 
         # Define joint limits for safe operation
         self.joint_limits = [
@@ -62,7 +85,7 @@ class AutoMotionExplorer(Node):
         
         point = JointTrajectoryPoint()
         point.positions = positions
-        point.velocities = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # Explicit zero velocities
+        point.velocities = [0.0] * len(self.joint_names)  # Explicit zero velocities
         point.time_from_start.sec = 3
         point.time_from_start.nanosec = 0
         

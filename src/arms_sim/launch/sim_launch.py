@@ -7,39 +7,7 @@ from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from arms_sim.robot_info_extractor import extract_robot_info_with_auto_install
-import yaml
-from arms_sim.tools import add_description_packages_to_gz_path
-
-
-def extract_controller_names(yaml_path):
-    """
-    Extract controller names from a ROS 2 controller configuration YAML file.
-    """
-    try:
-        with open(yaml_path, 'r') as f:
-            config = yaml.safe_load(f)
-            
-        controller_names = []
-        
-        # Check for controller_manager configuration
-        if 'controller_manager' in config and 'ros__parameters' in config['controller_manager']:
-            controller_params = config['controller_manager']['ros__parameters']
-            
-            for key, value in controller_params.items():
-                if isinstance(value, dict) and 'type' in value:
-                    controller_names.append(key)
-                    
-        # If nothing found, look for top-level controller configurations
-        if not controller_names:
-            for key in config:
-                if key != 'controller_manager' and isinstance(config[key], dict):
-                    if 'ros__parameters' in config[key]:
-                        controller_names.append(key)
-            
-        return controller_names
-    except Exception as e:
-        print(f"Error reading controllers from {yaml_path}: {e}")
-        return ["joint_state_broadcaster"]
+from arms_sim.tools import add_description_packages_to_gz_path, extract_controller_names
 
 
 def launch_setup(context, *args, **kwargs):
@@ -50,6 +18,7 @@ def launch_setup(context, *args, **kwargs):
     use_sim_time = use_sim_time_str.lower() == "true"
     
     world = LaunchConfiguration("world").perform(context)
+
     controllers_file = LaunchConfiguration("controllers_file").perform(context)
     urdf_file = LaunchConfiguration("urdf_file").perform(context)
     
@@ -116,19 +85,15 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
     )
 
-    # Contrôleurs avec les deux approches combinées
-    controller_launcher = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=[
-            "--controller-manager", "/controller_manager",
-            "--param-file", controllers_path,
-            *controller_names  # Utilise la liste extraite des contrôleurs
-        ],
-        output="screen"
-    )
+    controller_spawners = [
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[controller, "--controller-manager", "/controller_manager"],
+            output="screen"
+        ) for controller in controller_names
+    ]
 
-    # Rest of your nodes
     camera_bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
@@ -152,8 +117,7 @@ def launch_setup(context, *args, **kwargs):
         name="auto_motion_explorer",
         output="screen",
         parameters=[
-            {"urdf_path": urdf_path},
-            {"use_sim_time": use_sim_time}
+            {"urdf_path": urdf_path}
         ]
     )
 
@@ -174,7 +138,7 @@ def launch_setup(context, *args, **kwargs):
         RegisterEventHandler(
             OnProcessExit(
                 target_action=spawn_robot,
-                on_exit=[controller_launcher]
+                on_exit=controller_spawners
             )
         ),
         
