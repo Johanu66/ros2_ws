@@ -58,6 +58,8 @@ def extract_robot_info(xacro_path):
     except Exception as e:
         print(f"Failed to parse URDF: {str(e)}")
         return None
+    
+    print(robot)
 
     # 3. Extract information
     try:

@@ -144,7 +144,13 @@ def launch_setup(context, *args, **kwargs):
         
         camera_bridge,
         image_saver,
-        auto_motion_explorer
+        
+        RegisterEventHandler(
+            OnProcessExit(
+                target_action=controller_spawners[-1],
+                on_exit=auto_motion_explorer
+            )
+        )
     ]
 
 
