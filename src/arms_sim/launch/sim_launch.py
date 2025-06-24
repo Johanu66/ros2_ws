@@ -6,8 +6,27 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-from arms_sim.robot_info_extractor import extract_robot_info_with_auto_install
+from arms_sim.robot_info_extractor import extract_robot_info_with_auto_install, extract_yaml_paths, inject_controller_yaml_to_xacro
 from arms_sim.tools import add_description_packages_to_gz_path, extract_controller_names
+from launch.logging import get_logger
+
+from arms_sim.tools import (
+    generate_universal_controller_config,
+    replace_hardware_plugin_for_simulation
+)
+
+def manage_controller_config(controllers_default_path, robot_info, xacro_path):
+    yaml_paths_from_xacro_file = extract_yaml_paths(xacro_path)
+
+    if yaml_paths_from_xacro_file and len(yaml_paths_from_xacro_file) > 0:
+        return yaml_paths_from_xacro_file[0]["resolved_path"]
+    else:
+        generate_universal_controller_config(robot_info, controllers_default_path)
+        if inject_controller_yaml_to_xacro(xacro_path=xacro_path, yaml_path=controllers_default_path, logger=get_logger()):
+            return controllers_default_path
+        else:
+            get_logger().error("Can't generate a controller config file for the robot arm")
+            exit()
 
 
 def launch_setup(context, *args, **kwargs):
@@ -18,21 +37,21 @@ def launch_setup(context, *args, **kwargs):
     use_sim_time = use_sim_time_str.lower() == "true"
     
     world = LaunchConfiguration("world").perform(context)
-
-    controllers_file = LaunchConfiguration("controllers_file").perform(context)
-    urdf_file = LaunchConfiguration("urdf_file").perform(context)
     
     # Get package paths
     pkg_ros_gz_sim = get_package_share_directory("ros_gz_sim")
     pkg_kinova_sim = get_package_share_directory("arms_sim")
-    
-    # Calculate full paths
+
+    urdf_file = LaunchConfiguration("urdf_file").perform(context)
     urdf_path = os.path.join(pkg_kinova_sim, "urdf", urdf_file)
+
+    robot_info = extract_robot_info_with_auto_install(xacro_path=urdf_path, logger=get_logger("arms_sim"))
+
+    # controllers_file = robot_info["gazebo_config_files"][0]["resolved_path"]
+    controllers_file = LaunchConfiguration("controllers_file").perform(context)
     controllers_path = os.path.join(pkg_kinova_sim, "config", controllers_file)
 
-    from launch.logging import get_logger
-    logger = get_logger("arms_sim")
-    robot_info = extract_robot_info_with_auto_install(xacro_path=urdf_path, logger=logger)
+    controllers_file = manage_controller_config(controllers_default_path=controllers_path, robot_info=robot_info, xacro_path=urdf_path)
     
     # Extract robot name
     robot_name = robot_info["robot_name"]
@@ -41,10 +60,24 @@ def launch_setup(context, *args, **kwargs):
     # Get controller names from YAML
     controller_names = extract_controller_names(controllers_path)
     print(f"Found controllers: {controller_names}")
+
+    robot_info = extract_robot_info_with_auto_install(xacro_path=urdf_path, logger=get_logger("arms_sim"))
+    print(robot_info)
     
     # Robot description (Xacro → URDF)
     xacro_file = os.path.join(pkg_kinova_sim, "urdf", urdf_file)
-    robot_description_content = Command(["xacro ", xacro_file, " sim_gazebo:=true"])
+    # robot_description_content = Command(["xacro ", xacro_file, " sim_gazebo:=true"])
+    # robot_description = {"robot_description": robot_description_content}
+    
+    # Execute xacro command to get robot description
+    import subprocess
+    xacro_cmd = ["xacro", xacro_file, "sim_gazebo:=true"]
+    robot_description_content = subprocess.check_output(xacro_cmd).decode('utf-8')
+    
+    # Replace hardware plugin
+    robot_description_content = replace_hardware_plugin_for_simulation(robot_description_content)
+    
+    # Use the modified content
     robot_description = {"robot_description": robot_description_content}
 
     # Gazebo world
@@ -160,7 +193,7 @@ def generate_launch_description():
     world_arg = DeclareLaunchArgument("world", default_value="empty_world.sdf", description="World file to load")
     
     # Robot-specific parameters
-    controllers_file_arg = DeclareLaunchArgument("controllers_file", default_value="ros2_controllers.yaml", description="Controller configuration file")
+    controllers_file_arg = DeclareLaunchArgument("controllers_file", default_value="universal_arms_ros2_controllers.yaml", description="Controller configuration file")
     urdf_file_arg = DeclareLaunchArgument("urdf_file", default_value="gen3_lite.urdf.xacro", description="URDF/XACRO file name")
     
     # Create and return launch description
