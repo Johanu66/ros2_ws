@@ -51,7 +51,7 @@ def launch_setup(context, *args, **kwargs):
     controllers_file = LaunchConfiguration("controllers_file").perform(context)
     controllers_path = os.path.join(pkg_kinova_sim, "config", controllers_file)
 
-    controllers_file = manage_controller_config(controllers_default_path=controllers_path, robot_info=robot_info, xacro_path=urdf_path)
+    controllers_path = manage_controller_config(controllers_default_path=controllers_path, robot_info=robot_info, xacro_path=urdf_path)
     
     # Extract robot name
     robot_name = robot_info["robot_name"]

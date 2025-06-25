@@ -75,7 +75,15 @@ def extract_yaml_paths(xacro_path, logger=None, auto_install=True):
                                     logger.info(f"Attempting to install missing package: {package_name}")
                                 # Try installing with rosdep
                                 try:
-                                    install_rosdep_package(package_name, logger=logger)
+                                    # Try installing with rosdep first
+                                    if install_rosdep_package(package_name, logger=logger):
+                                        logger.info(f"Successfully installed {package_name} from rosdep")
+                                    # Try cloning from GitHub
+                                    elif clone_and_build_package(package_name, logger=logger):
+                                        logger.info(f"Successfully built {package_name} from source")
+                                    # Try installing with apt
+                                    elif install_ros_apt_package(package_name, logger=logger):
+                                        logger.info(f"Successfully installed {package_name} from ros apt")
                                 except Exception as e:
                                     if logger:
                                         logger.error(f"Failed to install {package_name}: {str(e)}")
